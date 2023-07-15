@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <link
+            href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/css/bootstrap.min.css"
+            rel="stylesheet"
+            integrity="sha384-F3w7mX95PdgyTmZZMECAngseQB83DfGTowi0iMjiWaeVhAn4FJkqJByhZMI3AhiU"
+            crossorigin="anonymous"
+    />
+    <link
+            href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
+            rel="stylesheet"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.0/dist/jquery.min.js"></script>
+    <script src="/pps/src/route.js"></script>
+    <meta charset="UTF-8"/>
+    <!-- <meta name="viewport" content="width=device-width, initial-scale=1.0" /> -->
+    <title>臺南一中學生議會議事系統</title>
+
+    <script id="indexjs" member_id="{{ member_id }}">
+            $(document).ready(() => {
+                route.init();
+            });
+    </script>
+</head>
+
+<!--
+海に生き，海を守り，海を行く，それがブルーマーメード
+-->
+
+<body>
+<nav
+        class="navbar navbar-expand-lg navbar-light bg-dark main-navbar"
+        style="--bs-bg-opacity: 0.8"
+>
+    <div class="container-fluid">
+        <img src="/pps/src/icon.png" height="32px" class="mx-lg-1">
+        <a class="navbar-brand" href="/pps/info/"
+        >臺南一中學生議會議事系統</a
+        >
+
+        <button
+                aria-controls="navbarSupportedContent"
+                aria-expanded="false"
+                aria-label="Toggle navigation"
+                class="navbar-toggler"
+                data-bs-target="#navbarSupportedContent"
+                data-bs-toggle="collapse"
+                type="button"
+        >
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div
+                class="collapse navbar-collapse"
+                id="navbarSupportedContent"
+        >
+            <ul class="navbar-nav me-auto">
+                {% if manage_permission is True %}
+                <li class="nav-item manage">
+                    <a class="nav-link" href="/pps/manage/">Manage</a>
+                </li>
+                {% end %}
+                <li class="nav-item about">
+                    <a class="nav-link" href="/pps/about/">About</a>
+                </li>
+            </ul>
+            <ul class="navbar-nav ms-auto">
+                <li class="nav-item">
+                    <a
+                            class="nav-link login"
+                            href="/pps/login/"
+                            style="display: none"
+                    >Login</a
+                    >
+                    <a
+                            class="nav-link logout"
+                            href="/pps/info/"
+                            style="display: none"
+                    >Logout</a
+                    >
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<div class="container-fluid h-100" id="routerView">
+</div>
+
+<div style="position: fixed; right: 15px; bottom: 5px">
+    <span class="text-muted">Developed by tobiichi3227</span>
+</div>
+
+<script
+        crossorigin="anonymous"
+        integrity="sha384-/bQdsTh/da6pkI1MST/rWKFNjaCP5gBSY4sEBT38Q/9RBh9AH40zEOg7Hlq2THRZ"
+        src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/js/bootstrap.bundle.min.js"
+></script>
+</body>
+</html>

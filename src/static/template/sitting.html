@@ -1,0 +1,316 @@
+<script>
+    function init() {
+        let ws_link = "";
+        if (location.protocol !== "https:") {
+            // for dev
+            ws_link = `ws://${location.hostname}:3227/pps/be/sittingws/{{sitting_id}}`;
+        } else {
+            ws_link = `wss://${location.hostname}/oj/be/sittingws/{{sitting_id}}`;
+        }
+        var ws = new WebSocket(ws_link);
+
+        ws.onopen = (event) => {
+            ws.send(
+                JSON.stringify({
+                    action: "connection",
+                    data: {
+                        member_id: route.member_id,
+                        session_id: route.session_id,
+                    },
+                })
+            );
+        };
+
+        ws.onmessage = (event) => {
+            console.log(event.data);
+            let data = JSON.parse(event.data);
+
+            if (data["action"] == "update") {
+                let update_type = data["data"]["type"];
+                if (update_type == "new-impromptu-motion") {
+                    impromptu_update(data["data"]["list"], ws);
+                } else if (update_type == "to-second-motion") {
+                    impromptu_update(data["data"]["list"], ws);
+                } else if (update_type == "update-vote-option") {
+                } else if (update_type == "update-vote-count") {
+                }
+            } else if (data["action"] == "toggle") {
+                vote_toggle();
+            } else if (data["action"] == "notify") {
+                //TODO: 開放臨時動議或質詢登記時通知一下？
+            }
+        };
+
+        // event handler init
+        interpellation_event(ws);
+        impromptu_event(ws);
+    }
+
+    function interpellation_event(ws) {
+        let modal = $("#interpellationModal");
+        modal.find("button.submit").on("click", (event) => {
+            let list = [];
+            $("table#official tbody tr").each(function () {
+                let input = $(this).find("td > input");
+                if (input.is(":checked")) {
+                    list.push(parseInt(input.attr("member_id")));
+                }
+            });
+            ws.send(
+                JSON.stringify({
+                    action: "update",
+                    data: {
+                        type: "interpellation",
+                        member_id: route.member_id,
+                        list: list,
+                    },
+                })
+            );
+        });
+    }
+
+    function impromptu_event(ws) {
+        let modal = $("#impromptuModal");
+        modal.find("button.submit").on("click", (event) => {
+            let bill_name = modal.find("input#InputImpromptu").val();
+            if (bill_name == "" || bill_name == undefined) {
+                alert("不要傳空白的提案");
+                return;
+            }
+
+            ws.send(
+                JSON.stringify({
+                    action: "update",
+                    data: {
+                        type: "new-impromptu-motion",
+                        bill_name: bill_name,
+                        member_id: route.member_id,
+                    },
+                })
+            );
+
+            modal.find("#InputImpromptu").val("");
+        });
+
+        let checkboxes = modal.find("input[type=checkbox]");
+        checkboxes.change(function () {
+            checkboxes.filter(":checked").map(function () {
+                ws.send(
+                    JSON.stringify({
+                        action: "update",
+                        data: {
+                            type: "to-second-motion",
+                            member_id: route.member_id,
+                            index: $(this).attr("index"),
+                        },
+                    })
+                );
+            });
+        });
+    }
+
+    function impromptu_update(impromptu_list, ws) {
+        let table_body = $("#impromptuTable").find("tbody");
+        table_body.html("");
+        impromptu_list.forEach((impromptu, idx) => {
+            table_body.append(
+                `
+                <tr>
+                    <th scope="col">${impromptu["bill_name"]}</th>
+                    <td>${impromptu["count"]}</td>
+                    <td>
+                        <input type="checkbox" class="form-check" index=${idx} />
+                    </td>
+                </tr> 
+                `
+            );
+        });
+
+        // 因為html內容被更新了，所以原本的EventListener就消失了，因此需要重新註冊
+        // 投票也是同樣原因
+        impromptu_event(ws);
+    }
+
+    function vote_toggle() {
+        let voteModal = new bootstrap.Modal(
+            document.getElementById("voteModal")
+        );
+        voteModal.toggle();
+    }
+</script>
+
+<div
+    aria-hidden="true"
+    aria-labelledby="exampleModalLabel"
+    class="modal fade"
+    id="interpellationModal"
+    tabindex="-1"
+>
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="exampleModalLabel">質詢登記</h5>
+            </div>
+            <div class="modal-body">
+                <form id="interpellationForm">
+                    <table class="table" id="official">
+                        <thead>
+                            <tr>
+                                <th scope="col">官員</th>
+                                <th scope="col">質詢這位官員</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- TODO: 可以使用window.localStorage來存狀態 -->
+                            {% for official in officials %}
+                            <tr>
+                                <th scope="row">{{official.official_name}}</th>
+                                <td>
+                                    <input
+                                        type="checkbox"
+                                        class="form-check"
+                                        member_id="{{official.id}}"
+                                    />
+                                </td>
+                            </tr>
+                            {% end %}
+                        </tbody>
+                    </table>
+                </form>
+                <button type="button" class="btn btn-primary submit">
+                    登記
+                </button>
+                <div id="print"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div
+    aria-hidden="true"
+    aria-labelledby="exampleModalLabel"
+    class="modal fade"
+    id="voteModal"
+    tabindex="-1"
+    data-bs-backdrop="static"
+>
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="exampleModalLabel">投票</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <!-- <th scope="col">同意</th>
+                            <th scope="col">不同意</th>
+                            <th scope="col">棄權</th> -->
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr id="VoteCount">
+                            <!-- <td>1</td>
+                            <td>1</td>
+                            <td>1</td> -->
+                        </tr>
+                        <tr id="InputVote">
+                            <!-- <td>
+                                <input type="radio" name="vote-option" />
+                            </td>
+                            <td>
+                                <input type="radio" name="vote-option" />
+                            </td>
+                            <td>
+                                <input type="radio" name="vote-option" />
+                            </td> -->
+                        </tr>
+                    </tbody>
+                </table>
+                <button class="btn btn-primary submit">送出</button>
+            </div>
+        </div>
+    </div>
+</div>
+<div
+    aria-hidden="true"
+    aria-labelledby="exampleModalLabel"
+    class="modal fade"
+    id="impromptuModal"
+    tabindex="-1"
+>
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="exampleModalLabel">臨時動議</h5>
+            </div>
+            <div class="modal-body">
+                <form id="impromptuForm">
+                    <label for="InputImpromptu" class="form-label"
+                        >臨時動議</label
+                    >
+                    <input
+                        type="text"
+                        id="InputImpromptu"
+                        class="form-control my-2"
+                    />
+                    <button type="button" class="btn btn-primary submit my-2">
+                        Submit
+                    </button>
+                </form>
+                <table class="table" id="impromptuTable">
+                    <thead>
+                        <tr>
+                            <th scope="col">議案名稱</th>
+                            <th scope="col">附議人數</th>
+                            <th scope="col">附議</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- TODO: 可以使用window.localStorage來存狀態 -->
+                        {% for idx, impromptu in enumerate(impromptus) %}
+                        <tr>
+                            <th scope="col">{{impromptu['bill_name']}}</th>
+                            <td>{{impromptu['count']}}</td>
+                            <td>
+                                <input
+                                    type="checkbox"
+                                    class="form-check"
+                                    index="{{idx}}"
+                                />
+                            </td>
+                        </tr>
+                        {% end %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12 col-lg-3 pt-3 pt-lg-2 d-flex d-lg-block">
+        <!-- 嬌羞的議員 -->
+        <button class="btn btn-primary mx-auto speak">發言/舉手</button>
+        <button class="btn btn-primary mx-auto temporary-absence">
+            暫時離席
+        </button>
+    </div>
+    <div class="col-12 col-lg-3 pt-3 pt-lg-2 mt-3 d-flex d-lg-block">
+        <button
+            class="btn btn-primary mx-auto interpellation"
+            data-bs-toggle="modal"
+            data-bs-target="#interpellationModal"
+        >
+            質詢登記
+        </button>
+        <button
+            class="btn btn-primary mx-auto impromptu"
+            data-bs-toggle="modal"
+            data-bs-target="#impromptuModal"
+        >
+            臨時動議
+        </button>
+    </div>
+</div>

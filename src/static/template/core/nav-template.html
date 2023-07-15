@@ -1,0 +1,36 @@
+{% block head %} {% end %}
+<script>
+    function activeNav() {
+        console.log("activeNav");
+        $(document).ready(() => {
+            let parts = location.pathname.split("/"); // parts[3] is page
+            let side_nav = $("#side-nav");
+            side_nav.find("a.nav-link.active").removeClass("active");
+            side_nav.find(`a.nav-link.${parts[4]}`).addClass("active");
+        });
+    }
+</script>
+
+<div class="col-1">
+    <nav class="nav nav-pills" id="side-nav" style="width: 8%">
+        <a
+            class="nav-link mt-1 checkin"
+            href="/pps/core/sitting/checkin/{{sitting_id}}/"
+            >Check&nbsp;In</a
+        >
+        <a
+            class="nav-link mt-1 agenda"
+            href="/pps/core/sitting/agenda/{{sitting_id}}/"
+        >
+            Agenda
+        </a>
+
+        <a
+            class="nav-link mt-1 config"
+            href="/pps/core/sitting/config/{{sitting_id}}/"
+        >
+            Config
+        </a>
+    </nav>
+</div>
+{% block content%} {% end %}

@@ -1,0 +1,224 @@
+{% extends 'manage-nav-template.html' %} {% block head %}
+<div class="row mt-lg-2">
+    <script>
+        function init() {
+            activeNav();
+
+            let modal = $("#registerModal");
+            modal.find("select#SelectGroup").on("change", function (event) {
+                let val = $(this).val();
+                if (val == 2) {
+                    modal.find("#OfficialName").show();
+                } else {
+                    modal.find("#OfficialName").hide();
+                }
+            });
+
+            modal.find("button.submit").on("click", (event) => {
+                let form = modal.find("form#registerForm");
+                form.addClass("was-validated");
+                if (!form.get(0).checkValidity()) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    return;
+                }
+
+                let name = form.find("input#InputName").val();
+                let class_seat_number = form
+                    .find("input#InputClassSeatNumber")
+                    .val();
+                let mail = form.find("input#InputEmail").val();
+                let is_global_constituency = form
+                    .find("input#InputConstituency")
+                    .is(":checked");
+                let group = form.find("select#SelectGroup").val();
+                let official_name = "";
+                if (group == 2) {
+                    official_name = form.find("input#InputOfficialName").val();
+                }
+
+                $.post(
+                    "/pps/be/manage/member",
+                    {
+                        reqtype: "register",
+                        type: "single",
+                        name: name,
+                        mail: mail,
+                        group: group,
+                        classseatnumber: class_seat_number,
+                        is_global_constituency: is_global_constituency,
+                        official_name: official_name,
+                    },
+                    (res) => {
+                        let print = form.find("#print");
+                        let wrapper = document.createElement("div");
+                        wrapper.innerHTML = `<div class="alert alert-success alert-dismissible" role="alert"> Submit success <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>`;
+                        print.append(wrapper);
+
+                        setTimeout(() => {
+                            form.find(".btn-secondary").click();
+                            print.html("");
+                        }, 1000);
+                    }
+                );
+            });
+        }
+    </script>
+    {% end %} {% block content %}
+
+    <div
+        aria-hidden="true"
+        aria-labelledby="exampleModalLabel"
+        class="modal fade"
+        id="registerModal"
+        tabindex="-1"
+    >
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="exampleModalLabel">Register</h5>
+                    <button
+                        aria-label="Close"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        type="button"
+                    ></button>
+                </div>
+                <div class="modal-body">
+                    <form class="needs-validation" id="registerForm">
+                        <div class="mb-3">
+                            <label for="InputName" class="form-label"
+                                >Name</label
+                            >
+                            <input
+                                class="form-control"
+                                id="InputName"
+                                required
+                                type="text"
+                            />
+                            <div class="invalid-feedback">not null</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="InputClassSeatNumber" class="form-label"
+                                >班級座號</label
+                            >
+                            <input
+                                class="form-control"
+                                id="InputClassSeatNumber"
+                                required
+                                type="number"
+                            />
+                            <div class="invalid-feedback">not null</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="InputEmail" class="form-label"
+                                >Email address</label
+                            >
+                            <input
+                                aria-describedby="emailHelp"
+                                class="form-control"
+                                id="InputEmail"
+                                required
+                                type="email"
+                            />
+                            <div class="invalid-feedback">not null</div>
+                            <div id="emailHelp" class="form-text">
+                                請使用學校的帳號
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="InputConstituency" class="form-label"
+                                >是否為全校選區</label
+                            >
+                            <input
+                                class="form-check"
+                                id="InputConstituency"
+                                type="checkbox"
+                            />
+                        </div>
+                        <div class="mb-3">
+                            <label for="SelectGroup" class="form-label"
+                                >Group</label
+                            >
+                            <select id="SelectGroup" class="form-select">
+                                <option value="1" selected>Member</option>
+                                <option value="2">Association</option>
+                                <option value="3">Secretariat</option>
+                                <option value="4">Speaker</option>
+                                <!-- <option value="5">Root</option> -->
+                            </select>
+                        </div>
+                        <div
+                            class="mb-3"
+                            id="OfficialName"
+                            style="display: none"
+                        >
+                            <label for="InputOfficialName" class="form-label"
+                                >職稱(用於學生會)</label
+                            >
+                            <input
+                                class="form-control"
+                                id="InputOfficialName"
+                                type="text"
+                            />
+                        </div>
+                        <div id="print"></div>
+                        <button type="button" class="btn btn-primary submit">
+                            Submit
+                        </button>
+                        <button
+                            class="btn btn-secondary"
+                            data-bs-dismiss="modal"
+                            type="button"
+                        >
+                            Close
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <table class="table table-hover table-sm col mx-lg-3">
+        <thead>
+            <tr>
+                <th scope="col">#</th>
+                <th scope="col">Name</th>
+                <th scope="col">班級座號</th>
+                <th scope="col">Mail</th>
+                <th scope="col">全校選區</th>
+                <th scope="col">Group</th>
+                <th>
+                    <button
+                        type="button"
+                        class="btn btn-primary p-1"
+                        data-bs-toggle="modal"
+                        data-bs-target="#registerModal"
+                    >
+                        Register
+                    </button>
+                </th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for member in members %} {% if member.id != 0 %}
+            <tr>
+                <th scope="row">{{ member.id }}</th>
+                <td>{{ member.name }}</td>
+                <td>{{ member.classseatnumber }}</td>
+                <td>{{ member.mail }}</td>
+                <td>{{ member.is_global_constituency }}</td>
+                <td>{{ member_group[member.group] }}</td>
+                <td>
+                    <a
+                        class="btn btn-secondary p-1"
+                        href="/pps/manage/member/?page=update&member_id={{member.id}}"
+                        >Config</a
+                    >
+                </td>
+            </tr>
+            {% end %} {% end %}
+        </tbody>
+    </table>
+    {% end %}
+</div>

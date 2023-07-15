@@ -1,0 +1,117 @@
+{% extends 'manage-nav-template.html' %} {% block head %}
+<div class="row mt-lg-2">
+    <script>
+        function init() {
+            activeNav();
+
+            let form = $("#registerForm");
+
+            form.find("button.submit").on("click", (event) => {
+                let bill_name = form.find("#InputName").val();
+                // let sitting_id = form.find("#InputSittingId").val();
+                // if (sitting_id == undefined) {
+                //     sitting_id = 0
+                // }
+
+                $.post(
+                    "/pps/be/manage/bills",
+                    {
+                        reqtype: "create",
+                        bill_name: bill_name,
+                        // sitting_id: sitting_id,
+                    },
+                    (res) => {
+                        let print = form.find("#print");
+                        let wrapper = document.createElement("div");
+                        wrapper.innerHTML = `<div class="alert alert-success alert-dismissible" role="alert"> Submit success <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>`;
+                        print.append(wrapper);
+
+                        setTimeout(() => {
+                            form.find(".btn-secondary").click();
+                            print.html("");
+                        }, 1000);
+                    }
+                );
+            });
+        }
+    </script>
+    {% end %} {% block content %}
+
+    <div
+        aria-hidden="true"
+        aria-labelledby="exampleModalLabel"
+        class="modal fade"
+        id="registerModal"
+        tabindex="-1"
+    >
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="exampleModalLabel">新增議案</h5>
+                    <button
+                        aria-label="Close"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        type="button"
+                    ></button>
+                </div>
+                <div class="modal-body">
+                    <form id="registerForm">
+                        <label for="InputName" class="form-label"
+                            >議案名稱</label
+                        >
+                        <input
+                            type="text"
+                            id="InputName"
+                            class="form-control"
+                        />
+                        <div id="print"></div>
+                        <button
+                            type="button"
+                            class="btn btn-primary mt-lg-3 submit"
+                        >
+                            Submit
+                        </button>
+                        <button
+                            class="btn btn-secondary mt-lg-3"
+                            data-bs-dismiss="modal"
+                            type="button"
+                        >
+                            Close
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <table class="table table-hover table-sm table-responsive-sm col mx-lg-3">
+        <thead>
+            <tr>
+                <th scope="col">#</th>
+                <th scope="col">議案名稱</th>
+                <th>
+                    <button
+                        class="btn btn-primary"
+                        data-bs-toggle="modal"
+                        data-bs-target="#registerModal"
+                    >
+                        新增議案
+                    </button>
+                </th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for bill in bills %}
+            <tr>
+                <th scope="row">{{bill[0]}}</th>
+                <td>{{bill[1]}}</td>
+                <td>
+                    <button class="btn btn-primary">Config</button>
+                </td>
+            </tr>
+            {% end %}
+        </tbody>
+    </table>
+</div>
+{% end %}

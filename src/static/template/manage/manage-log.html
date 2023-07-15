@@ -1,0 +1,58 @@
+{% extends 'manage-nav-template.html' %} {% block head %}
+<div class="row mt-lg-2">
+    <script>
+        function init() {
+            activeNav();
+        }
+
+
+    </script>
+    {% end %} {% block content %}
+
+    <table class="table table-hover table-sm table-responsive-sm col mx-lg-3">
+        <thead class="table-light">
+        <tr>
+            <th scope="col">#</th>
+            <th scope="col">操作者</th>
+            <th scope="col">訊息</th>
+            <th scope="col">操作類型</th>
+            <th scope="col">時間</th>
+            <th></th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for log in logs %}
+        <tr>
+            <th scope="row">{{ log['id'] }}</th>
+            <td>{{ log['operator_name'] }}</td>
+            <td>{{ log['message'] }}</td>
+            <td>{{ log['operate_type'] }}</td>
+            <td>{{ log['timestamp'] }}</td>
+        </tr>
+        {% end %}
+        </tbody>
+    </table>
+
+    <!-- pagination -->
+    <div class="row">
+        <div class="col-1"></div>
+        <div class="col pt-3">
+            <nav aria-label="Page navigation example">
+                <ul class="pagination justify-content-center">
+                    <!-- this algorithm from toj -->
+                    <!-- 我沒研究怎麼實現的，但能用 -->
+                    {% import math %}
+                    {% set ct = math.floor(offset / limit) %}
+                    {% set st = min(max(0, ct - 9), max(0, math.ceil(logcnt / limit) - 19)) %}
+                    {% for i, off in enumerate(range(st * limit, min(logcnt, st * limit + 950), limit)) %}
+                    <li class="page-item {% if ct == (i + st) %} active {% end %}">
+                        <a class="page-link" href="?offset={{str(off)}}&limit={{limit}}">{{i + 1 + st}}</a>
+                    </li>
+                    {% end %}
+                </ul>
+            </nav>
+        </div>
+    </div>
+</div>
+{% end %}
+

@@ -1,0 +1,108 @@
+<style>
+    h3 {
+        text-align: center;
+    }
+
+    div.mb-3 {
+        text-align: center;
+    }
+
+    button.submit {
+        position: relative;
+        left: 50%;
+        transform: translate(-50%, -50%);
+    }
+
+</style>
+
+<script>
+    function init() {
+        $("button.submit").on("click", (event) => {
+            let form = $("form#loginForm");
+            form.addClass("was-validated");
+            if (!form.get(0).checkValidity()) {
+                event.preventDefault();
+                event.stopPropagation();
+                return;
+            }
+
+            let mail = form.find("input#InputEmail").val();
+            let password = form.find("input#InputPassword").val();
+            let appointed_dates = form.find("select#selectAppointedDates").val();
+            let sessions = form.find("select#selectSessions").val();
+
+            $.post(
+                "/pps/be/login",
+                {
+                    reqtype: "login",
+                    mail: mail,
+                    pw: password,
+                    appointed_dates: appointed_dates,
+                    sessions: sessions,
+                },
+                (res) => {
+                    if (res[0] == "E") {
+                        let print = form.find("#print");
+                        let wrapper = document.createElement("div");
+
+                        if (res == "Emembernoext") {
+                            wrapper.innerHTML = `<div class="alert alert-warning alert-dismissible" role="alert"> 帳號不存在 </div>`;
+                        } else if ((res = "Ewrongpw")) {
+                            wrapper.innerHTML = `<div class="alert alert-warning alert-dismissible" role="alert"> 密碼錯誤 </div>`;
+                        }
+                        print.append(wrapper);
+                        setTimeout(() => {
+                            print.html("");
+                        }, 1000);
+                    } else {
+                        if (route.prev_url == null) {
+                            location.href = "/pps/info";
+                            return;
+                        }
+                        location.href = route.prev_url;
+                    }
+                }
+            );
+        });
+    }
+
+</script>
+<div class="row row-cols-1 row-cols-lg-3 justify-content-center align-content-center" style="height: 100%;">
+    <div id="login" class="col mt-1">
+        <form id="loginForm" style="padding-top: 25%;">
+            <h3>登入</h3>
+            <div class="mb-3">
+                <label for="selectAppointedDates" class="form-label">屆數</label>
+                <select id="selectAppointedDates">
+                    {% from util.numeric import num2chinese_num %}
+                    {% for i in range(1, current_appointed_dates + 1) %}
+                    {% if i == current_appointed_dates %}
+                    <option value="{{ i }}" selected>第{{ num2chinese_num(i) }}屆</option>
+                    {% else %}
+                    <option value="{{ i }}">第{{ num2chinese_num(i) }}屆</option>
+                    {% end %}
+                    {% end %}
+                </select>
+            </div>
+            <div class="mb-3">
+                <label for="selectSessions" class="form-label">會期數</label>
+                <select id="selectSessions">
+                    <option value="1" {% if current_sessions== 1 %} selected {% end %}>第一會期</option>
+                    <option value="2" {% if current_sessions== 2 %} selected {% end %}>第二會期</option>
+                </select>
+            </div>
+            <div class="mb-4">
+                <input type="email" id="InputEmail" class="form-control" placeholder="Email address" required/>
+                <div class="invalid-feedback">請輸入Email</div>
+            </div>
+            <div class="mb-4">
+                <input type="password" id="InputPassword" class="form-control" placeholder="Password" required/>
+                <div class="invalid-feedback">請輸入密碼</div>
+            </div>
+            <div class="mb-5 mb-lg-3" id="print"></div>
+            <button type="button" class="btn btn-primary mb-3 submit" tabindex="8">
+                Login
+            </button>
+        </form>
+    </div>
+</div>

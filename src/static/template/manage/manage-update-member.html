@@ -1,0 +1,183 @@
+{% extends 'manage-nav-template.html' %} {% block head %}
+<div class="row">
+    <script>
+        function init() {
+            activeNav();
+
+            let member_id = "{{member_id}}";
+            let origin_group = "{{member[3]}}";
+
+            let form = $("#updateMemberForm");
+            form.find("select#SelectGroup").on("change", function (event) {
+                let val = $(this).val();
+                if (val == 2) {
+                    form.find("#OfficialName").show();
+                } else {
+                    form.find("#OfficialName").hide();
+                }
+            });
+
+            form.find("button.submit").on("click", function (event) {
+                let name = form.find("input#InputName").val();
+                let class_seat_number = form
+                    .find("input#InputClassSeatNumber")
+                    .val();
+                let is_global_constituency = form.find("input#InputConstituency").is(":checked");
+                let group = form.find("select#SelectGroup").val();
+                if (
+                    group > 4 ||
+                    group < 0 ||
+                    group == undefined ||
+                    group == "小心選"
+                ) {
+                    group = origin_group;
+                }
+                let official_name = '';
+                if (group == 2) {
+                    official_name = form.find("input#InputOfficialName").val();
+                }
+
+                $.post(
+                    "/pps/be/manage/member",
+                    {
+                        reqtype: "update",
+                        member_id: member_id,
+                        name: name,
+                        class_seat_number: class_seat_number,
+                        is_global_constituency: is_global_constituency,
+                        group: group,
+                        official_name: official_name,
+                    },
+                    (res) => {
+                        let print = form.find("div#print");
+                        let wrapper = document.createElement("div");
+                        if (res[0] != "E") {
+                            wrapper.innerHTML = `<div class="alert alert-success alert-dismissible" role="alert"> Update success <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>`;
+                        } else {
+                            wrapper.innerHTML = `<div class="alert alert-warning alert-dismissible" role="alert"> Update fail <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>`;
+                        }
+                        print.append(wrapper);
+                        setTimeout(() => {
+                            print.html("");
+                        }, 1000);
+                    }
+                );
+            });
+            form.find("button.password").on("click", function (event) {
+                let password = form.find("input#InputPassword").val();
+                if (password == "" || password == undefined) {
+                    alert("密碼不能為空");
+                    return;
+                }
+
+                $.post(
+                    "/pps/be/manage/member",
+                    {
+                        reqtype: "updatepassword",
+                        member_id: member_id,
+                        password: password,
+                    },
+                    (res) => {
+                        if (res[0] != "E") {
+                            let print = form.find("div#print");
+                            let wrapper = document.createElement("div");
+                            wrapper.innerHTML = `<div class="alert alert-success alert-dismissible" role="alert"> Change password success <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>`;
+                            print.append(wrapper);
+
+                            setTimeout(() => {
+                                print.html("");
+                            }, 1000);
+                        }
+                    }
+                );
+            });
+            form.find("button.go-back").on("click", function (event) {
+                location.href = route.prev_url;
+            });
+        }
+    </script>
+    {% end %} {% block content %}
+    <div class="col mx-lg-3">
+        <form class="needs-validation" id="updateMemberForm">
+            <div class="mb-3">
+                <label class="form-label" for="InputName">Name</label>
+                <input
+                    class="form-control"
+                    id="InputName"
+                    required
+                    type="text"
+                    value="{{member[0]}}"
+                />
+                <div class="invalid-feedback">not null</div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="InputClassSeatNumber"
+                    >班級座號</label
+                >
+                <input
+                    class="form-control"
+                    id="InputClassSeatNumber"
+                    required
+                    type="number"
+                    value="{{member[1]}}"
+                />
+                <div class="invalid-feedback">not null</div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="InputConstituency"
+                    >全校選區</label
+                >
+                <input
+                    type="checkbox"
+                    id="InputConstituency"
+                    class="form-check"
+                />
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="SelectGroup"
+                    >Group(謹慎操作)</label
+                >
+                <select class="form-select" id="SelectGroup">
+                    <!-- 之後會跟著Permission System一起改 -->
+                    <option value="1" {% if member[3] == 1 %} selected {% end %}>Member</option>
+                    <option value="2" {% if member[3] == 2 %} selected {% end %}>Association</option>
+                    <option value="3" {% if member[3] == 3 %} selected {% end %}>Secretariat</option>
+                    <option value="4" {% if member[3] == 4 %} selected {% end %}>Speaker</option>
+                    <!-- <option value="5">Root</option> -->
+                </select>
+            </div>
+            <div class="mb-3" id="OfficialName" {% if member[3] != 2 %} style="display: none" {% end %}>
+                <label for="InputOfficialName" class="form-label"
+                    >職稱(用於學生會)</label
+                >
+                <input
+                    class="form-control"
+                    id="InputOfficialName"
+                    type="text"
+                    value="{{member[4]}}"
+                />
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="InputPassword"
+                    >密碼(謹慎操作)</label
+                >
+                <input
+                    class="form-control"
+                    id="InputPassword"
+                    required
+                    type="password"
+                />
+                <div class="invalid-feedback">not null</div>
+            </div>
+            <div id="print"></div>
+            <button class="btn btn-primary submit" type="button">Submit</button>
+            <button class="btn btn-danger password" type="button">
+                Update password
+            </button>
+            <button class="btn btn-secondary go-back" type="button">
+                Go back
+            </button>
+        </form>
+        {% end %}
+    </div>
+</div>

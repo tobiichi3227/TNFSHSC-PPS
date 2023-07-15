@@ -1,0 +1,41 @@
+{% extends 'nav-template.html' %} {% block head %}
+<div class="row">
+    <script>
+        function init() {
+            activeNav();
+
+            let form = $("#configForm");
+            form.find("button.submit").on("click", (event) => {
+                let location = form.find("#InputLocation").val();
+                let chairperson = form.find("#InputChairperson").val();
+                let secretary = form.find("#InputSecretary");
+
+                //TODO: 把它實現完
+            });
+        }
+    </script>
+    {% end %} {% block content %}
+    <div class="col mt-lg-2">
+        <form class="col mt-lg-2" id="configForm">
+            <div class="mb-3">
+                <label for="InputLocation">修改地點</label>
+                <input class="form-control" id="InputLocation" type="text" />
+            </div>
+
+            <div class="mb-3">
+                <label for="InputChairperson">主席</label>
+                <input class="form-control" id="InputChairperson" type="text" />
+            </div>
+
+            <div class="mb-3">
+                <label for="InputSecretary">秘書長</label>
+                <input class="form-control" id="InputSecretary" type="text" />
+            </div>
+            <button class="btn btn-primary submit">確定</button>
+        </form>
+        <button class="btn btn-primary csv my-lg3">導出簽到CSV檔</button>
+        <button class="btn btn-primary log my-lg-3">導出會議記錄</button>
+        <button class="btn btn-primary proceedings my-lg-3">導出議事錄</button>
+        {% end %}
+    </div>
+</div>

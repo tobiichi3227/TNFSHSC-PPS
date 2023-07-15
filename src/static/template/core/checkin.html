@@ -1,0 +1,79 @@
+{% extends 'nav-template.html' %} {% block head %}
+<div class="row">
+    <script>
+        function init() {
+            activeNav();
+        }
+
+        function checkin(member_id, event) {
+            $.post("/pps/be/core/sitting/checkin/{{sitting_id}}", {
+                reqtype: "checkin",
+                member_id: member_id,
+            });
+
+            if ($(event).attr("disabled") == undefined) {
+                $(event).attr("disabled", true);
+            }
+
+            $(`input#checkout-${member_id}`).removeAttr("disabled");
+        }
+
+        function checkout(member_id, event) {
+            $.post("/pps/be/core/sitting/checkin/{{sitting_id}}", {
+                reqtype: "checkout",
+                member_id: member_id,
+            });
+
+            if ($(event).attr("disabled") == undefined) {
+                $(event).attr("disabled", true);
+            }
+        }
+    </script>
+    {% end %} {% block content %}
+    <table class="table table-hover col mx-lg-3">
+        <thead>
+            <tr>
+                <th scope="col">#</th>
+                <th scope="col">姓名</th>
+                <th scope="col">班級座號</th>
+                <th scope="col">簽到</th>
+                <th scope="col">簽退</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for member in members %}
+            <tr>
+                <th scope="row">{{ member.id }}</th>
+                <td>{{ member.name }}</td>
+                <td>{{ member.classseatnumber }}</td>
+                {% if member_session_id.get(member.id) == None %}
+                <td>
+                    <input
+                        type="checkbox"
+                        onclick="checkin({{member.id}}, this)"
+                    />
+                </td>
+                {% else %}
+                <td>
+                    <input type="checkbox" checked disabled />
+                </td>
+                {% end %} 
+                {% if member_session_id.get(member.id) != "checkout" %}
+                <td>
+                    <input
+                        type="checkbox"
+                        id="checkout-{{member.id}}"
+                        onclick="checkout({{member.id}}, this)"
+                    />
+                </td>
+                {% else %}
+                <td>
+                    <input type="checkbox" checked disabled />
+                </td>
+                {% end %}
+            </tr>
+            {% end %}
+        </tbody>
+    </table>
+    {% end %}
+</div>

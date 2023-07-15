@@ -1,0 +1,211 @@
+{% extends 'manage-nav-template.html' %} {% block head %}
+<div class="row mt-2">
+    <!-- -->
+    {% from util.numeric import num2chinese_num %}
+    <script src="https://unpkg.com/chinese-numbering@1.x/bundle/iife.js"></script>
+    <script>
+        function init() {
+            activeNav();
+
+            let modal = $("#createModal");
+            let form = modal.find("form#createForm");
+            let appointed_dates = "{{num2chinese_num(appointed_dates)}}";
+            let sessions = "{{num2chinese_num(sessions)}}";
+            let sitting_type = 2;
+
+            form.find("div#SittingName")
+                .find("span")
+                .html(`第${appointed_dates}屆第${sessions}會期第常會`);
+
+            form.find("select#selectSittingType").on(
+                "change",
+                function (event) {
+                    let val = $(this).val();
+                    if (val == "0") {
+                        form.find("input#InputSittingTimes").css(
+                            "display",
+                            "none"
+                        );
+                        form.find("div#SittingName")
+                            .find("span")
+                            .html(
+                                `第${appointed_dates}屆第${sessions}會期預備會議`
+                            );
+                    } else {
+                        form.find("input#InputSittingTimes").show();
+                        let html = form
+                            .find("div#SittingName")
+                            .find("span")
+                            .html();
+                        sitting_type = parseInt(val);
+                        if (sitting_type == 1) {
+                        }
+                    }
+                }
+            );
+
+            form.find("input#InputSittingTimes").on("input", function (event) {
+                const cn = window.ChineseNumbering;
+
+                let val = $(this).val();
+                if (isNaN(val)) {
+                    alert("不要亂打");
+                    $(this).val("");
+                    return;
+                } else if (val <= 0) {
+                    alert("不要亂打");
+                    $(this).val("");
+                    return;
+                }
+
+                let number = cn.numberToChinese(val, "t");
+                let name = `第${appointed_dates}屆第${sessions}會期第${number}次`;
+                console.log(sitting_type);
+                if (sitting_type == 1) {
+                    name += "常會";
+                } else if (sitting_type == 2) {
+                    name += "臨時會";
+                }
+                form.find("div#SittingName").find("span").html(name);
+            });
+
+            modal.find("button.submit").on("click", (event) => {
+                form.addClass("was-validated");
+                if (!form.get(0).checkValidity()) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    return;
+                }
+
+                let sitting_type = form.find("select#selectSittingType").val();
+                let sitting_times = form.find("input#InputSittingTimes").val();
+                let location = form.find("input#InputLocation").val();
+
+                $.post(
+                    "/pps/be/manage/sittings",
+                    {
+                        reqtype: "create",
+                        sitting_times: sitting_times,
+                        sitting_type: sitting_type,
+                        location: location,
+                    },
+                    (res) => {
+                        let print = form.find("#print");
+                        let wrapper = document.createElement("div");
+                        wrapper.innerHTML = `<div class="alert alert-success alert-dismissible" role="alert"> Submit success <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>`;
+                        print.append(wrapper);
+
+                        setTimeout(() => {
+                            form.find(".btn-secondary").click();
+                            print.html("");
+                        }, 1000);
+                    }
+                );
+            });
+        }
+    </script>
+    {% end %} {% block content %}
+    <div
+        class="modal fade"
+        id="createModal"
+        tabindex="-1"
+        aria-labelledby="exampleModalLabel"
+        aria-hidden="true"
+    >
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="exampleModalLabel">新增議會</h5>
+                    <button
+                        type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Close"
+                    ></button>
+                </div>
+                <div class="modal-body">
+                    <form id="createForm">
+                        <div class="mb-3">
+                            <label for="selectSittingType" class="form-label"
+                                >議會類型</label
+                            >
+                            <select id="selectSittingType" class="form-select">
+                                <option value="1" selected>常會</option>
+                                <option value="2">臨時會</option>
+                                <option value="0">預備會議</option>
+                            </select>
+                        </div>
+                        <div class="row" id="SittingName">
+                            <span></span>
+                            <div class="mb-3 col" id="InputSittingTimes">
+                                <input
+                                    type="number"
+                                    class="form-control"
+                                    id="InputSittingTimes"
+                                    required
+                                />
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="InputLocation" class="form-label"
+                                >地點</label
+                            >
+                            <input
+                                type="text"
+                                class="form-control"
+                                id="InputLocation"
+                                required
+                            />
+                        </div>
+                        <div id="print"></div>
+                        <button type="button" class="btn btn-primary submit">
+                            Submit
+                        </button>
+                        <button
+                            type="button"
+                            class="btn btn-secondary"
+                            data-bs-dismiss="modal"
+                        >
+                            Close
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <table class="table table-hover table-responsive col mx-lg-3">
+        <thead class="table-light">
+            <tr class="">
+                <th class="" scope="col">#</th>
+                <th class="" scope="col">議會名稱</th>
+                <th class="" scope="col">地點</th>
+                <th class="" scope="col">開會日期</th>
+                <th>
+                    <button
+                        type="button"
+                        class="btn btn-primary p-1"
+                        data-bs-toggle="modal"
+                        data-bs-target="#createModal"
+                    >
+                        新增會議
+                    </button>
+                </th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for sitting in sittings %}
+            <tr>
+                <th scope="row">{{ sitting['id'] }}</th>
+                <td>{{ sitting['name'] }}</td>
+                <td>{{ sitting['location'] }}</td>
+                <td>{{ sitting['time'] }}</td>
+                <td>
+                    <a href="/pps/core/sitting/{{sitting['id']}}/">Go To</a>
+                </td>
+            </tr>
+            {% end %}
+        </tbody>
+    </table>
+    {% end %}
+</div>

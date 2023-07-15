@@ -1,0 +1,28 @@
+{% block head %} {% end %}
+<script>
+    function activeNav() {
+        $(document).ready(() => {
+            let parts = location.pathname.split("/"); // parts[3] is page
+            let side_nav = $("#side-nav");
+            side_nav.find("a.nav-link.active").removeClass("active");
+            side_nav.find(`a.nav-link.${parts[3]}`).addClass("active");
+        });
+    }
+</script>
+
+<div class="col-1">
+    <nav class="nav nav-pills" id="side-nav" style="width: 8%">
+        <a class="nav-link mt-1 member" href="/pps/manage/member/"
+            >Member Manage</a
+        >
+        <a class="nav-link mt-1 sittings" href="/pps/manage/sittings/"
+            >Sittings Manage</a
+        >
+        <a class="nav-link mt-1 bills" href="/pps/manage/bills/">Bills Manage</a>
+        <a class="nav-link mt-1 sysconfig" href="/pps/manage/sysconfig/"
+            >System Config</a
+        >
+        <a class="nav-link mt-1 log" href="/pps/manage/log/">View Log</a>
+    </nav>
+</div>
+{% block content%} {% end %}

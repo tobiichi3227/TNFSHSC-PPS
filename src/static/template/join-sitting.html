@@ -1,0 +1,43 @@
+<script>
+    function init() {
+        $("button.submit").on("click", function (event) {
+            $.post(
+                "/pps/be/sitting/{{sitting_id}}",
+                {
+                    reqtype: "request_session_id",
+                    member_id: route.member_id,
+                },
+                (res) => {
+                    let msg = '';
+                    if (res[0] != "E") {
+                        route.session_id = res;
+                        route.go("/pps/sitting/{{sitting_id}}/");
+                    } else {
+                        if (res == "Eacces") {
+                            msg = '沒簽到';
+                        } else if (res == "Eend") {
+                            msg = '議會結束了';
+                        }
+                    }
+                    
+                    // 這個區段可以寫成公用函數
+                    let print = $("#print");
+                    let wrapper = document.createElement("div");
+                    wrapper.innerHTML = `<div class="alert alert-warning alert-dismissible" role="alert"> ${msg} <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>`;
+                    print.append(wrapper);
+
+                    setTimeout(() => {
+                        print.html("");
+                    }, 1000);
+                }
+            );
+        });
+    }
+</script>
+
+<div class="row">
+    <div class="col-12 col-lg-3 mt-3 mt-lg-2">
+        <button class="btn btn-primary mx-auto my-auto submit">加入會議</button>
+        <div id="print"></div>
+    </div>
+</div>

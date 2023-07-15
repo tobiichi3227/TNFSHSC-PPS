@@ -1,0 +1,394 @@
+{% extends 'nav-template.html' %} {% block head %}
+<!-- Synchronous XMLHttpRequest on the main thread is deprecated because of its detrimental effects to the end user’s experience. For more help http://xhr.spec.whatwg.org/ -->
+<style type="text/css">
+    p {
+        width: fit-content;
+    }
+
+    /* 
+    The MIT License (MIT)
+
+    Copyright © 2015-2016 Nicolas Bevacqua
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy of
+    this software and associated documentation files (the "Software"), to deal in
+    the Software without restriction, including without limitation the rights to
+    use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+    the Software, and to permit persons to whom the Software is furnished to do so,
+    subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+    FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+    COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+    IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+    CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+    */
+    /* dragula css */
+    .gu-mirror {
+        position: fixed !important;
+        margin: 0 !important;
+        z-index: 9999 !important;
+        opacity: 0.8;
+        -ms-filter: "progid:DXImageTransform.Microsoft.Alpha(Opacity=80)";
+        filter: alpha(opacity=80);
+    }
+    .gu-hide {
+        display: none !important;
+    }
+    .gu-unselectable {
+        -webkit-user-select: none !important;
+        -moz-user-select: none !important;
+        -ms-user-select: none !important;
+        user-select: none !important;
+    }
+    .gu-transit {
+        opacity: 0.2;
+        -ms-filter: "progid:DXImageTransform.Microsoft.Alpha(Opacity=20)";
+        filter: alpha(opacity=20);
+    }
+</style>
+
+<div class="row mt-lg-2">
+    <script id="js" sitting_id="{{sitting_id}}">
+        function drag_handle(drag) {
+            drag = dragula([document.getElementById("drag")], {
+                moves: function (el, container, handle) {
+                    return handle.classList.contains("drag");
+                },
+                invalid: function (el, handle) {
+                    return !can_drag;
+                },
+            });
+
+            drag.on("drop", function (el, target, source, sibling) {
+                console.log(target);
+                console.log(source);
+            });
+        }
+
+        function init() {
+            let drag = null;
+            let can_drag = true;
+            $.getScript(
+                "https://cdnjs.cloudflare.com/ajax/libs/dragula/3.6.6/dragula.min.js",
+                function () {
+                    drag = dragula([document.getElementById("drag")], {
+                        moves: function (el, container, handle) {
+                            return handle.classList.contains("drag");
+                        },
+                        invalid: function (el, handle) {
+                            return !can_drag;
+                        },
+                    });
+
+                    drag.on("drop", function (el, target, source, sibling) {});
+                }
+            );
+
+            $.getScript("/pps/src/agenda.js");
+            activeNav();
+
+            $("#SelectAgendaType").on("change", function (event) {
+                if ($(this).val() == 1) {
+                    $("#InputText").show();
+                } else {
+                    $("#InputText").hide();
+                }
+            });
+
+            $("#newAgendaForm")
+                .find("button.new-agenda")
+                .on("click", (event) => {
+                    let text = $("#InputText").val();
+                    if (text == "" || text == undefined) {
+                        return;
+                    }
+
+                    $.post(
+                        "/pps/be/core/agenda/{{sitting_id}}",
+                        {
+                            reqtype: "new-agenda",
+                            text: text,
+                        },
+                        (res) => {
+                            drag_handle(drag);
+                        }
+                    );
+                });
+        }
+    </script>
+
+    <div
+        aria-hidden="true"
+        aria-labelledby="exampleModalLabel"
+        class="modal fade"
+        id="newAgendaModal"
+        tabindex="-1"
+    >
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="exampleModalLabel">新增議程</h5>
+                    <button
+                        aria-label="Close"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        type="button"
+                    ></button>
+                </div>
+                <div class="modal-body">
+                    <form id="newAgendaForm">
+                        <label for="SelectAgendaType" class="form-label"
+                            >議程</label
+                        >
+                        <select id="SelectAgendaType" class="form-select">
+                            <option value="1" selected>文字</option>
+                            <option value="2">提案討論</option>
+                            <option value="3">會務詢答</option>
+                            <option value="4">臨時動議</option>
+                        </select>
+                        <input
+                            id="InputText"
+                            type="text"
+                            class="form-control mt-lg-3"
+                        />
+                        <div id="print"></div>
+                        <button
+                            type="button"
+                            class="btn btn-primary mt-lg-3 new-agenda"
+                        >
+                            Submit
+                        </button>
+                        <button
+                            class="btn btn-secondary mt-lg-3"
+                            data-bs-dismiss="modal"
+                            type="button"
+                        >
+                            Close
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% end %} {% block content %}
+    <div class="col-lg-5">
+        <button class="btn btn-primary mb-lg-3 start">開會</button>
+        <button class="btn btn-secondary mb-lg-3 disabled pause">休會</button>
+        <button class="btn btn-secondary mb-lg-3 disabled stop">散會</button>
+        <button
+            class="btn btn-primary mb-lg-3"
+            data-bs-toggle="modal"
+            data-bs-target="#newAgendaModal"
+        >
+            新增議程
+        </button>
+        <br />
+        <label for="#dragLock" class="form-check-label"
+            >鎖定
+            <input id="dragLock" class="form-check" type="checkbox" />
+        </label>
+        <!-- mojang的code style(沒 -->
+        <div id="drag">
+            {% for idx, i in enumerate(agenda) %} 
+            {% if i.get("type") == "text" %}
+            <div>
+                <button
+                    type="button"
+                    class="btn-close btn-sm d-inline-block"
+                    aria-label="Close"
+                ></button>
+                <p
+                    class="drag d-inline-block"
+                    onmousedown="return false"
+                    onselect="return false"
+                >
+                    {{i['name']}}
+                </p>
+            </div>
+            {% elif i.get("type") == "proposal-discussion" %}
+            <!---->
+            {% from services.core import bill_html_gen %}
+            <div>
+                <button
+                    type="button"
+                    class="btn-close btn-sm d-inline-block"
+                    aria-label="Close"
+                ></button>
+                <p
+                    class="drag"
+                    onmousedown="return false"
+                    onselect="return false"
+                >
+                    {{i['name']}}
+                    <button
+                        class="btn btn-sm"
+                        data-bs-toggle="collapse"
+                        href="#collapseProposal"
+                        role="button"
+                        aria-expanded="false"
+                        aria-controls="#collapseProposal"
+                    >
+                        <span class="material-symbols-outlined"
+                            >expand_more</span
+                        >
+                    </button>
+                </p>
+                <div class="collapse pe-auto" id="collapseProposal">
+                    {% for j, bill in enumerate(i['list']) %}
+                    <div id="proposal-{{j}}">
+                        {{bill_html_gen(bill, 0, 0)}}
+                    </div>
+                    {% end %}
+                </div>
+            </div>
+            {% elif i.get("type") == "interpellations" %}
+            <div>
+                <button
+                    type="button"
+                    class="btn-close btn-sm d-inline-block"
+                    aria-label="Close"
+                ></button>
+                <p
+                    class="drag d-inline-block"
+                    onmousedown="return false"
+                    onselect="return false"
+                >
+                    {{i['name']}}
+                    <button
+                        class="btn btn-sm"
+                        data-bs-toggle="collapse"
+                        href="#collapseInterpellations"
+                        role="button"
+                        aria-expanded="false"
+                        aria-controls="#collapseInterpellations"
+                    >
+                        <span class="material-symbols-outlined"
+                            >expand_more</span
+                        >
+                    </button>
+                </p>
+                <div class="collapse" id="collapseInterpellations">
+                    <button class="btn btn-primary mb-2">質詢登記管理</button>
+                    <table>
+                        <tbody>
+                            {% for j in i['list'] %}
+                            <tr>
+                                <th scope="col">{{j['member']}}選區</th>
+                                <td>
+                                    <button
+                                        class="btn btn-primary ms-1 timer-start"
+                                    >
+                                        開始計時
+                                    </button>
+                                </td>
+                            </tr>
+                            {% end %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% elif i.get("type") == "impromptu-motion" %}
+            <div>
+                <p
+                    class="drag"
+                    onmousedown="return false"
+                    onselect="return false"
+                >
+                    {{i['name']}}
+                    <button
+                        class="btn btn-sm"
+                        data-bs-toggle="collapse"
+                        href="#collapseImpromptu"
+                        role="button"
+                        aria-expanded="false"
+                        aria-controls="#collapseImpromptu"
+                    >
+                        <span class="material-symbols-outlined"
+                            >expand_more</span
+                        >
+                    </button>
+                </p>
+                <div class="collapse pe-auto" id="collapseImpromptu">
+                    <button class="btn btn-primary mb-2">臨時動議管理</button>
+                    {% for j in i['list'] %}
+                    <div>{{bill_html_gen(j, 0, 0)}}</div>
+                    {% end %}
+                </div>
+            </div>
+            {% end %}
+        {% end %}
+        </div>
+
+        <button class="btn btn-primary" id="nextAgenda">下個議程</button>
+    </div>
+    <div class="col-lg-6">
+        <!-- proposal -->
+        <!-- 
+            單純新增刪除？
+         -->
+
+        <!-- impromptu -->
+        <!-- 
+            大概先跟member那邊一樣
+         -->
+
+        <!-- vote -->
+        <!-- 
+            新增選項 是否記名投票(default為false)
+            選項list
+            開始投票 (開始後變成倒數？)
+         -->
+
+        <div id="voteUI" style="display: none;">
+            <h3>投票</h3>
+            <label for="SelectVoteOptionType" class="form-label">表決選項設定</label>
+            <select id="SelectVoteOptionType" class="form-select">
+                <option value="1" selected>預設</option>
+                <option value="2">自訂</option>
+            </select>
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th scope="col">同意</th>
+                        <th scope="col">不同意</th>
+                        <th scope="col">棄權</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td id="1">0</td>
+                        <td id="2">0</td>
+                        <td id="3">0</td>
+                    </tr>
+                </tbody>
+            </table>
+            <button class="btn btn-primary">開始投票</button>
+            <button class="btn btn-secondary close">關閉界面</button>
+        </div>
+
+        <!-- interpellation -->
+        <!-- 
+            table
+            member對official
+         -->
+        <div id="interpellationUI" style="display: none">
+            <h3>質詢登記管理</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>官員</th>
+                    </tr>
+                </thead>
+            </table>
+            <button class="btn btn-secondary close">關閉界面</button>
+        </div>
+    </div>
+
+    {% end %}
+</div>
