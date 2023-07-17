@@ -1,8 +1,4 @@
 <style>
-    h3 {
-        text-align: center;
-    }
-
     div.mb-3 {
         text-align: center;
     }
@@ -10,9 +6,196 @@
     button.submit {
         position: relative;
         left: 50%;
-        transform: translate(-50%, -50%);
+        transform: translate(-50%, 60%);
     }
+</style>
 
+<title>臺南一中學生議會議事系統 - 登入</title>
+<style>
+    *{
+margin: 0;
+padding: 0;
+box-sizing: border-box;
+font-family: 'Poppins',sans-serif;
+}
+body{
+overflow: hidden;
+}
+section{
+display: flex;
+justify-content: center;
+align-items: center;
+min-height: 100vh;
+background: linear-gradient(to bottom,#f1f4f9,#dff1ff);
+}
+section .color{
+position: absolute;
+filter: blur(150px);
+}
+section .color:nth-child(1){
+top: -350px;
+width: 600px;
+height: 600px;
+background: #ff359b;
+}
+section .color:nth-child(2){
+bottom: -150px;
+left: 100px;
+width: 500px;
+height: 500px;
+background: #fffd87;
+}
+section .color:nth-child(3){
+bottom: 50px;
+right: 100px;
+width: 500px;
+height: 500px;
+background: #00d2ff;
+}
+.box{
+position: relative;
+}
+.box .square{
+position: absolute;
+backdrop-filter: blur(5px);
+box-shadow: 0 25px 45px rgb(0,0,0,0.1);
+border: 1px solid rgb(255,255,255,0.5);
+border-right: 1px solid rgb(255,255,255,0.2);
+border-bottom: 1px solid rgb(255,255,255,0.2);
+background:rgb(255,255,255,0.1);
+border-radius: 10px;
+animation: animate 10s linear infinite;
+animation-delay: calc(-1s*var(--i));
+}
+
+/* 這是動畫 */
+@keyframes animate{
+0%,100%{
+    transform: translateY(-40px);
+}
+50%{
+    transform: translate(40px);
+}
+}
+.box .square:nth-child(1){
+top: -50px;
+right: -60px;
+width: 100px;
+height: 100px;
+}
+.box .square:nth-child(2){
+top: 150px;
+left: -100px;
+width: 120px;
+height: 120px;
+z-index: 2;
+}
+.box .square:nth-child(3){
+bottom: 50px;
+right: -60px;
+width: 80px;
+height: 80px;
+z-index: 2;
+}
+.box .square:nth-child(4){
+bottom: -80px;
+left: 100px;
+width: 50px;
+height: 50px;
+}
+.box .square:nth-child(5){
+top: -90px;
+left: 140px;
+width: 60px;
+height: 60px;
+}
+.container{
+position: relative;
+width:400px;
+min-height: 400px;
+background:rgb(255,255,255,0.1);
+border-radius: 10px;
+display: flex;
+justify-content: center;
+align-items: center;
+backdrop-filter: blur(5px);
+box-shadow: 0 25px 45px rgb(0,0,0,0.1);
+border: 1px solid rgb(255,255,255,0.5);
+border-right: 1px solid rgb(255,255,255,0.2);
+border-bottom: 1px solid rgb(255,255,255,0.2);
+}
+.col.mt-1{
+position: relative;
+height: 100%;
+width: 100%;
+padding: 40px;
+}
+.col.mt-1 h2{
+position: relative;
+color: #fff;
+font-size: 24px;
+font-weight: 600;
+letter-spacing: 1px;
+margin-bottom: 40px;
+}
+.col.mt-1 h2::before{
+content: '';
+position: absolute;
+left: 0;
+bottom: -10px;
+width: 80px;
+height: 4px;
+background: #fff;
+}
+.col.mt-1 .mb-4{
+width: 100%;
+margin-top: 20px;
+}
+.col.mt-1 .mb-4 input{
+width: 100%;
+background: rgb(255,255,255,0.2);
+border: none;
+outline: none;
+padding: 10px 20px;
+border-radius: 35px;
+border: 1px solid rgb(255,255,255,0.5);
+border-right: 1px solid rgb(255,255,255,0.2);
+border-bottom: 1px solid rgb(255,255,255,0.2);
+font-size: 16px;
+letter-spacing: 1px;
+color: #b1acb3;
+box-shadow: 0 5px 15px rgb(0,0,0,0.05);
+}
+.col.mt-1 .mb-3{
+width: 100%;
+margin-top: 20px;
+}
+.col.mt-1 .mb-3 select{
+width: 100%;
+background: rgb(255,255,255,0.2);
+border: none;
+outline: none;
+padding: 10px 20px;
+border-radius: 35px;
+border: 1px solid rgb(255,255,255,0.5);
+border-right: 1px solid rgb(255,255,255,0.2);
+border-bottom: 1px solid rgb(255,255,255,0.2);
+font-size: 16px;
+letter-spacing: 1px;
+color: #53565c;
+box-shadow: 0 5px 15px rgb(0,0,0,0.05);
+}
+.col.mt-1 .mb-4 input::placeholder{
+color: #b1acb3;
+}
+.col.mt-1 button[type="button"]{
+background: #fff;
+color: #666;
+max-width: 100px;
+cursor: pointer;
+margin-bottom: 20px;
+font-weight: 600;
+}
 </style>
 
 <script>
@@ -67,12 +250,32 @@
     }
 
 </script>
-<div class="row row-cols-1 row-cols-lg-3 justify-content-center align-content-center" style="height: 100%;">
+
+<section>
+    <div class="color"></div>
+    <div class="color"></div>
+    <div class="color"></div>
+    <div class="box">
+        <div class="square" style="--i:0;"></div>
+        <div class="square" style="--i:1;"></div>
+        <div class="square" style="--i:2;"></div>
+        <div class="square" style="--i:3;"></div>
+        <div class="square" style="--i:4;"></div>
+<div class="container">
+    <div class="row row-cols-1 row-cols-lg-3 justify-content-center align-content-center" style="height: 100%;">
     <div id="login" class="col mt-1">
-        <form id="loginForm" style="padding-top: 25%;">
-            <h3>登入</h3>
+        <h2>登入議事系統</h2>
+        <form id="loginForm">
+            <div class="mb-4">
+                <input type="email" id="InputEmail" class="form-control" placeholder="Email address" required/>
+                <div class="invalid-feedback"></div>
+            </div>
+            <div class="mb-4">
+                <input type="password" id="InputPassword" class="form-control" placeholder="Password" required/>
+                <div class="invalid-feedback"></div>
+            </div>
             <div class="mb-3">
-                <label for="selectAppointedDates" class="form-label">屆數</label>
+                <label for="selectAppointedDates" class="form-label"></label>
                 <select id="selectAppointedDates">
                     {% from util.numeric import num2chinese_num %}
                     {% for i in range(1, current_appointed_dates + 1) %}
@@ -85,24 +288,18 @@
                 </select>
             </div>
             <div class="mb-3">
-                <label for="selectSessions" class="form-label">會期數</label>
+                <label for="selectSessions" class="form-label"></label>
                 <select id="selectSessions">
                     <option value="1" {% if current_sessions== 1 %} selected {% end %}>第一會期</option>
                     <option value="2" {% if current_sessions== 2 %} selected {% end %}>第二會期</option>
                 </select>
             </div>
-            <div class="mb-4">
-                <input type="email" id="InputEmail" class="form-control" placeholder="Email address" required/>
-                <div class="invalid-feedback">請輸入Email</div>
-            </div>
-            <div class="mb-4">
-                <input type="password" id="InputPassword" class="form-control" placeholder="Password" required/>
-                <div class="invalid-feedback">請輸入密碼</div>
-            </div>
             <div class="mb-5 mb-lg-3" id="print"></div>
             <button type="button" class="btn btn-primary mb-3 submit" tabindex="8">
-                Login
+                登入
             </button>
         </form>
     </div>
+    </div>
 </div>
+</section>
