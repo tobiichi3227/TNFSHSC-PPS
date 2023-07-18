@@ -36,54 +36,9 @@
 </script>
 
 <div class="row">
+    <link rel="stylesheet" href="assets/css/join.css">
     <div class="col-12 col-lg-3 mt-3 mt-lg-2">
         <button class="btn btn-primary mx-auto my-auto submit">加入會議</button>
         <div id="print"></div>
     </div>
 </div>
-
-<!--接下來僅是裝飾部分，維護無須往下看-->
-<style>
-    body {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        height: 100vh;
-        background-color: #353b48;
-    }
-    .row .col-12.col-lg-3.mt-3.mt-lg-2 button {
-        position: relative;
-        width: 200px;
-        height: 70px;
-        line-height: 60px;
-        text-align: center;
-        font-size: 30px;
-        background-color: #353b48;
-        color: rgb(117, 217, 228);
-        border: 5px solid rgb(117, 217, 228);
-    }
-    .row .col-12.col-lg-3.mt-3.mt-lg-2 button::before,
-    .row .col-12.col-lg-3.mt-3.mt-lg-2 button::after {
-        content: "";
-        position: absolute;
-        width: 15px;
-        height: 5px;
-        background-color: #353b48;
-        transform: skew(50deg);
-        transition: all 0.5s;
-    }
-    .row .col-12.col-lg-3.mt-3.mt-lg-2 button::before {
-        top: -5px;
-        left: 10%;
-    }
-    .row .col-12.col-lg-3.mt-3.mt-lg-2 button::after {
-        bottom: -5px;
-        right: 10%;
-    }
-    .row .col-12.col-lg-3.mt-3.mt-lg-2 button:hover::before {
-        left: 80%;
-    }
-    .row .col-12.col-lg-3.mt-3.mt-lg-2 button:hover::after {
-        right: 80%;
-    }
-</style>
