@@ -8,17 +8,16 @@
 
             form.find("button.submit").on("click", (event) => {
                 let bill_name = form.find("#InputName").val();
-                // let sitting_id = form.find("#InputSittingId").val();
-                // if (sitting_id == undefined) {
-                //     sitting_id = 0
-                // }
+                let sitting_id = form.find("#InputSittingId").val();
 
                 $.post(
                     "/pps/be/manage/bills",
                     {
                         reqtype: "create",
                         bill_name: bill_name,
-                        // sitting_id: sitting_id,
+                        sitting_id: sitting_id,
+                        root_id: -1,
+                        parent_id: -1,
                     },
                     (res) => {
                         let print = form.find("#print");
@@ -65,6 +64,8 @@
                             id="InputName"
                             class="form-control"
                         />
+                        <label for="InputSittingId" class="form-label">會議ID</label>
+                        <input type="number" id="InputSittingId" class="form-control" placeholder="可選">
                         <div id="print"></div>
                         <button
                             type="button"
@@ -107,7 +108,12 @@
                 <th scope="row">{{bill[0]}}</th>
                 <td>{{bill[1]}}</td>
                 <td>
-                    <button class="btn btn-primary">Config</button>
+
+                    <a  href="/pps/manage/bills/?page=update&bill_id={{bill[0]}}">
+                        <span class="material-symbols-outlined">
+                            settings
+                        </span>
+                    </td>
                 </td>
             </tr>
             {% end %}

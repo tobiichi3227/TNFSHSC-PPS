@@ -5,28 +5,6 @@
         width: fit-content;
     }
 
-    /* 
-    The MIT License (MIT)
-
-    Copyright © 2015-2016 Nicolas Bevacqua
-
-    Permission is hereby granted, free of charge, to any person obtaining a copy of
-    this software and associated documentation files (the "Software"), to deal in
-    the Software without restriction, including without limitation the rights to
-    use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
-    the Software, and to permit persons to whom the Software is furnished to do so,
-    subject to the following conditions:
-
-    The above copyright notice and this permission notice shall be included in all
-    copies or substantial portions of the Software.
-
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-    FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-    COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-    IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-    CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-    */
     /* dragula css */
     .gu-mirror {
         position: fixed !important;
@@ -57,7 +35,7 @@
         function drag_handle(drag) {
             drag = dragula([document.getElementById("drag")], {
                 moves: function (el, container, handle) {
-                    return handle.classList.contains("drag");
+                    return handle.classList.contains("draggable");
                 },
                 invalid: function (el, handle) {
                     return !can_drag;
@@ -68,27 +46,22 @@
                 console.log(target);
                 console.log(source);
             });
+
         }
 
         function init() {
             let drag = null;
-            let can_drag = true;
+
             $.getScript(
                 "https://cdnjs.cloudflare.com/ajax/libs/dragula/3.6.6/dragula.min.js",
                 function () {
                     drag = dragula([document.getElementById("drag")], {
                         moves: function (el, container, handle) {
-                            return handle.classList.contains("drag");
-                        },
-                        invalid: function (el, handle) {
-                            return !can_drag;
-                        },
+                            return handle.classList.contains("draggable");
+                        }
                     });
-
-                    drag.on("drop", function (el, target, source, sibling) {});
                 }
             );
-
             $.getScript("/pps/src/agenda.js");
             activeNav();
 
@@ -109,13 +82,13 @@
                     }
 
                     $.post(
-                        "/pps/be/core/agenda/{{sitting_id}}",
+                        "/pps/be/core/sitting/agenda/{{sitting_id}}",
                         {
-                            reqtype: "new-agenda",
+                            reqtype: "new-agenda-text",
                             text: text,
                         },
                         (res) => {
-                            drag_handle(drag);
+                            location.href = location.href;
                         }
                     );
                 });
@@ -125,7 +98,7 @@
     <div
         aria-hidden="true"
         aria-labelledby="exampleModalLabel"
-        class="modal fade"
+        class="modal"
         id="newAgendaModal"
         tabindex="-1"
     >
@@ -147,9 +120,6 @@
                         >
                         <select id="SelectAgendaType" class="form-select">
                             <option value="1" selected>文字</option>
-                            <option value="2">提案討論</option>
-                            <option value="3">會務詢答</option>
-                            <option value="4">臨時動議</option>
                         </select>
                         <input
                             id="InputText"
@@ -176,11 +146,66 @@
         </div>
     </div>
 
+    <div
+        aria-hidden="true"
+        aria-labelledby="exampleModalLabel"
+        class="modal"
+        id="setSleepDurationModal"
+        tabindex="-1"
+    >
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="exampleModalLabel">設定時間</h5>
+                    <button
+                        aria-label="Close"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        type="button"
+                    ></button>
+                </div>
+                <div class="modal-body">
+                    <form id="durationForm">
+                        <label for="InputDuration" class="form-label">時間(分鐘(不要打太大，是真的會放大60倍))</label>
+                        <input
+                            id="InputDuration"
+                            type="number"
+                            class="form-control mt-lg-3"
+                        />
+                        <div id="print"></div>
+                        <button
+                            type="button"
+                            class="btn btn-primary mt-lg-3 submit"
+                            id="submit"
+                        >
+                            Submit
+                        </button>
+                        <button
+                            class="btn btn-secondary mt-lg-3"
+                            data-bs-dismiss="modal"
+                            type="button"
+                        >
+                            Close
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
     {% end %} {% block content %}
-    <div class="col-lg-5">
-        <button class="btn btn-primary mb-lg-3 start">開會</button>
-        <button class="btn btn-secondary mb-lg-3 disabled pause">休會</button>
-        <button class="btn btn-secondary mb-lg-3 disabled stop">散會</button>
+    <div class="col-lg-5" id="agendaUI">
+        <button class="btn btn-primary mb-lg-3 start" {% if is_start or is_end %}disabled{% end %}>開會</button>
+        <button class="btn btn-secondary mb-lg-3 mx-lg-2 {% if not is_start or is_end%}disabled{% end %} pause" data-bs-toggle="modal" data-bs-target="#setSleepDurationModal">
+            {% if sitting_pause %}
+            復會
+            {% else %}
+            休會
+            {% end %}
+        </button>
+        <button class="btn btn-secondary mb-lg-3 me-lg-2 {% if not is_start or is_end %}disabled{% end %} stop">
+            散會
+        </button>
         <button
             class="btn btn-primary mb-lg-3"
             data-bs-toggle="modal"
@@ -189,43 +214,63 @@
             新增議程
         </button>
         <br />
-        <label for="#dragLock" class="form-check-label"
-            >鎖定
-            <input id="dragLock" class="form-check" type="checkbox" />
+        <label for="#editable" class="form-check-label"
+            >編輯議程
+            <input
+                id="editable"
+                class="form-check"
+                type="checkbox"
+                v-model="editable"
+            />
         </label>
+
         <!-- mojang的code style(沒 -->
         <div id="drag">
+            <!--  -->
             {% for idx, i in enumerate(agenda) %} 
-            {% if i.get("type") == "text" %}
-            <div>
+            <!--  -->
+            {% if i.get_type() == "text" %}
+            <div class="my-lg-3">
                 <button
-                    type="button"
-                    class="btn-close btn-sm d-inline-block"
-                    aria-label="Close"
-                ></button>
+                    class="btn btn-sm d-inline"
+                    role="button"
+                    v-if="editable"
+                    @click="remove_agenda"
+                >
+                    <span class="material-symbols-outlined">delete</span>
+                </button>
                 <p
-                    class="drag d-inline-block"
+                    :class="{draggable: editable}"
+                    class="d-inline agenda-index"
+                    index="{{ idx }}"
                     onmousedown="return false"
                     onselect="return false"
+                    id="{{i.get_text_id()}}"
                 >
-                    {{i['name']}}
+                    {{i.get_name()}}
                 </p>
             </div>
-            {% elif i.get("type") == "proposal-discussion" %}
+            {% elif i.get_type() == "proposal-discussion" %}
             <!---->
-            {% from services.core import bill_html_gen %}
-            <div>
+            <div class="my-lg-3">
                 <button
-                    type="button"
-                    class="btn-close btn-sm d-inline-block"
-                    aria-label="Close"
-                ></button>
+                    class="btn btn-sm d-inline"
+                    role="button"
+                    v-if="editable"
+                    @click="remove_agenda"
+                >
+                    <span class="material-symbols-outlined">delete</span>
+                </button>
                 <p
-                    class="drag"
+                    :class="{draggable: editable}"
+                    class="d-inline agenda-index"
+                    index="{{ idx }}"
                     onmousedown="return false"
                     onselect="return false"
+                    id="proposal-discussion"
                 >
-                    {{i['name']}}
+                {{i.get_name()}}
+                    
                     <button
                         class="btn btn-sm"
                         data-bs-toggle="collapse"
@@ -240,26 +285,30 @@
                     </button>
                 </p>
                 <div class="collapse pe-auto" id="collapseProposal">
-                    {% for j, bill in enumerate(i['list']) %}
-                    <div id="proposal-{{j}}">
-                        {{bill_html_gen(bill, 0, 0)}}
+                    <div>
+                    {{ proposal_html }}
                     </div>
-                    {% end %}
                 </div>
             </div>
-            {% elif i.get("type") == "interpellations" %}
+            {% elif i.get_type() == "interpellations" %}
             <div>
                 <button
-                    type="button"
-                    class="btn-close btn-sm d-inline-block"
-                    aria-label="Close"
-                ></button>
+                    class="btn btn-sm d-inline"
+                    role="button"
+                    v-if="editable"
+                    @click="remove_agenda"
+                >
+                    <span class="material-symbols-outlined">delete</span>
+                </button>
                 <p
-                    class="drag d-inline-block"
+                    :class="{draggable: editable}"
+                    class="d-inline agenda-index"
+                    index="{{ idx }}"
                     onmousedown="return false"
                     onselect="return false"
+                    id="interpellations"
                 >
-                    {{i['name']}}
+                    {{i.get_name()}}
                     <button
                         class="btn btn-sm"
                         data-bs-toggle="collapse"
@@ -274,33 +323,76 @@
                     </button>
                 </p>
                 <div class="collapse" id="collapseInterpellations">
-                    <button class="btn btn-primary mb-2">質詢登記管理</button>
+                    <button
+                        class="btn btn-primary mb-2"
+                        @click="show_interpellation_ui"
+                    >
+                        質詢登記管理
+                    </button>
                     <table>
                         <tbody>
-                            {% for j in i['list'] %}
-                            <tr>
-                                <th scope="col">{{j['member']}}選區</th>
+                            <tr v-for="(interpellation, idx) in interpellations">
+                                <th scope="col" :id="idx" :style="{ backgroundColor: interpellation['highlight'] }">{ interpellation['member_name'] }議員</th>
                                 <td>
                                     <button
+                                        v-if="interpellation['status'] == 0"
+                                        :index="idx"
+                                        @click="interpellation_timer"
                                         class="btn btn-primary ms-1 timer-start"
                                     >
                                         開始計時
                                     </button>
+                                    <button
+                                        v-if="interpellation['status'] == 1"
+                                        :index="idx"
+                                        @click="interpellation_timer"
+                                        class="btn btn-primary ms-1 timer-pause"
+                                    >
+                                        暫停計時
+                                    </button>
+                                    <button
+                                        v-if="interpellation['status'] == 2"
+                                        :index="idx"
+                                        @click="interpellation_timer"
+                                        class="btn btn-primary ms-1 timer-keep"
+                                    >
+                                        恢復計時
+                                    </button>
+                                    <button
+                                        v-if="interpellation['status'] == 2 || interpellation['status'] == 1"
+                                        :index="idx"
+                                        @click="interpellation_timer"
+                                        class="btn btn-primary ms-1 timer-stop"
+                                    >
+                                        結束計時
+                                    </button>
+                                    <p v-if="interpellation['status'] == 3">已經質詢完畢</p>
                                 </td>
                             </tr>
-                            {% end %}
                         </tbody>
                     </table>
                 </div>
             </div>
-            {% elif i.get("type") == "impromptu-motion" %}
+            {% elif i.get_type() == "impromptu-motion" %}
             <div>
+                <button
+                    class="btn btn-sm d-inline"
+                    role="button"
+                    v-if="editable"
+                    @click="remove_agenda"
+                >
+                    <span class="material-symbols-outlined">delete</span>
+                </button>
                 <p
-                    class="drag"
+                    :class="{draggable: editable}"
+                    class="d-inline agenda-index"
+                    index="{{ idx }}"
                     onmousedown="return false"
                     onselect="return false"
+                    id="impromptu-motion"
                 >
-                    {{i['name']}}
+                    {{i.get_name()}}
+
                     <button
                         class="btn btn-sm"
                         data-bs-toggle="collapse"
@@ -315,78 +407,205 @@
                     </button>
                 </p>
                 <div class="collapse pe-auto" id="collapseImpromptu">
-                    <button class="btn btn-primary mb-2">臨時動議管理</button>
-                    {% for j in i['list'] %}
-                    <div>{{bill_html_gen(j, 0, 0)}}</div>
-                    {% end %}
+                    <button
+                        class="btn btn-primary mb-2"
+                        @click="show_impromptu_ui"
+                    >
+                        臨時動議管理
+                    </button>
+                    <table class="table">
+                        <tbody>
+                            <tr v-for="(impromptu, idx) in impromptus">
+                                <th scope="col">{ impromptu.name }</th>
+                                <td>
+                                    <button class="btn btn-primary px-sm-1 py-sm-0" :id="impromptu.id" @click="without_objection">
+                                        無異議通過
+                                    </button>
+                                    <button class="btn btn-primary px-sm-1 py-sm-0" :id="impromptu.id" @click="vote_ui">
+                                        投票
+                                    </button>
+                                    <button class="btn btn-secondary px-sm-1 py-sm-0" :id="impromptu.id">
+                                        取消
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
-            {% end %}
-        {% end %}
+            {% end %} {% end %}
         </div>
 
-        <button class="btn btn-primary" id="nextAgenda">下個議程</button>
+        <button class="btn btn-primary" @click="next_agenda">下個議程</button>
     </div>
-    <div class="col-lg-6">
+    <div class="col-lg-6" id="UI" isOpenUI="false">
         <!-- proposal -->
         <!-- 
             單純新增刪除？
          -->
+
+        <div id="proposalUI" style="display: none"></div>
 
         <!-- impromptu -->
         <!-- 
             大概先跟member那邊一樣
          -->
 
-        <!-- vote -->
-        <!-- 
-            新增選項 是否記名投票(default為false)
-            選項list
-            開始投票 (開始後變成倒數？)
-         -->
+        <div id="impromptuUI" style="display: none">
+            <div class="row">
+                <div class="col-lg-4">
+                    <h3>臨時動議管理</h3>
+                </div>
+                <div class="col-lg-4">
+                    <button class="btn btn-primary" @click="start_submit">開放提案</button>
+                </div>
+                <div class="col-lg-4">
+                    <button class="btn btn-primary" @click="close_submit">關閉提案</button>
+                </div>
+            </div>
+            <table class="table" id="impromptuTable">
+                <thead>
+                    <tr>
+                        <th scope="col">議案名稱</th>
+                        <th scope="col">提案人</th>
+                        <th scope="col">附議人數</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="(impromptu, idx) in impromptus">
+                        <th>{ impromptu.bill_name }</th>
+                        <th>{ impromptu.name }</th>
+                        <th v-if="impromptu.count >= 1" style="background-color: red;">{ impromptu.count }</th>
+                        <th v-else>{ impromptu.count }</th>
+                    </tr>
+                </tbody>
+            </table>
+            <button class="btn btn-secondary mx-lg-2" @click="close_ui">
+                關閉界面
+            </button>
+        </div>
 
-        <div id="voteUI" style="display: none;">
-            <h3>投票</h3>
-            <label for="SelectVoteOptionType" class="form-label">表決選項設定</label>
-            <select id="SelectVoteOptionType" class="form-select">
-                <option value="1" selected>預設</option>
-                <option value="2">自訂</option>
-            </select>
+        <div id="voteUI" style="display: none;" billId="">
+            <div class="row">
+                <div class="col-lg-6">
+                    <h3>投票</h3>
+                </div>
+                <div class="col-lg-6">
+                    <h3>倒數計時: { duration_format }</h3>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-lg-5">
+                    <label class="form-label col">表決選項設定</label>
+                    <select
+                        id="SelectVoteOptionType col"
+                        class="form-select"
+                        v-model="vote_option_type"
+                    >
+                        <option value="1" selected>預設</option>
+                        <option value="2">自訂</option>
+                    </select>
+                </div>
+                <div class="col-lg-5">
+                    <label for="InputDuration" class="form-label col"
+                        >投票時間(秒數)</label
+                    >
+                    <input type="number" class="form-control col" v-model="duration" />
+                </div>
+                <div class="col-lg-2">
+                    <label for="InputOpened" class="form-label col"
+                        >記名</label
+                    >
+                    <input type="checkbox" class="form-check col" v-model="opened" style="transform: scale(150%);" />
+                    
+                </div>
+            </div>
+
+            <div class="my-lg-2" v-if="vote_option_type == 2">
+                <input
+                    v-model="custom_option"
+                    type="text"
+                    class="form-control"
+                />
+                <button
+                    class="btn btn-primary my-lg-2"
+                    @click="add_custom_option"
+                >
+                    新增選項
+                </button>
+            </div>
+
             <table class="table table-hover">
                 <thead>
                     <tr>
-                        <th scope="col">同意</th>
-                        <th scope="col">不同意</th>
-                        <th scope="col">棄權</th>
+                        <th v-for="option in options">{ option.option }</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr>
-                        <td id="1">0</td>
-                        <td id="2">0</td>
-                        <td id="3">0</td>
+                        <td v-for="option in options">{ option.count }</td>
                     </tr>
                 </tbody>
             </table>
-            <button class="btn btn-primary">開始投票</button>
-            <button class="btn btn-secondary close">關閉界面</button>
+            <button class="btn btn-primary" @click="start_vote">
+                開始投票
+            </button>
+            <button class="btn btn-secondary mx-lg-2" @click="close_ui">
+                關閉界面
+            </button>
         </div>
 
-        <!-- interpellation -->
-        <!-- 
-            table
-            member對official
-         -->
         <div id="interpellationUI" style="display: none">
-            <h3>質詢登記管理</h3>
-            <table>
+            <div class="row">
+                <div class="col-lg-4">
+                    <h3>質詢登記管理</h3>
+                </div>
+                <div class="col-lg-4">
+                    <button class="btn btn-primary" @click="start_submit">開放登記</button>
+                </div>
+                <div class="col-lg-4">
+                    <button class="btn btn-primary" @click="close_submit">停止登記</button>
+                </div>
+            </div>
+            <table class="table" v-for="(interpellation, idx) in interpellations">
                 <thead>
                     <tr>
-                        <th>官員</th>
+                        <th scope="col">議員</th>
+                        <th scope="col">被質詢之官員</th>
+                        <th scope="col">職稱</th>
                     </tr>
                 </thead>
+                <tbody>
+                    <tr>
+                        <td :rowspan="interpellation.officials.length">
+                            { interpellation.member_name }
+                        </td>
+                        <td>
+                            { interpellation.officials[0].name }
+                        </td>
+                        <td>
+                            { interpellation.officials[0].official_name }
+                        </td>
+                    </tr>
+
+                    <tr v-if="interpellation.officials.length !== 1" v-for="(official, idx) in interpellation.officials">
+                        <td>
+                            <!-- { interpellation.member_name } -->
+                        </td>
+                        <td>
+                            { official.name }
+                        </td>
+                        <td>
+                            { official.official_name }
+                        </td>
+                    </tr>
+                </tbody>
             </table>
-            <button class="btn btn-secondary close">關閉界面</button>
+
+            <table class="table table-sm"></table>
+            <button class="btn btn-secondary close" @click="close_ui">
+                關閉界面
+            </button>
         </div>
     </div>
 

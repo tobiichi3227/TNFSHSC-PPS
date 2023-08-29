@@ -8,15 +8,16 @@ import bcrypt
 import tornado.web
 from sqlalchemy import select, insert, update
 
-from models.models import Sessions, Member, MemberGroup
+from models.models import Sessions, Member, MemberGroup, MemberLockReason
 from services.log import LogService
 from services.sysconfig import SysConfigService
-from util.error import Success, WrongParamError, CanNotAccessError
-from ..base import RequestHandler, reqenv
+from utils.error import Success, WrongParamError, CanNotAccessError
+from ..base import RequestHandler, reqenv, require_permission
 
 
 class MemberManageHandler(RequestHandler):
     @reqenv
+    @require_permission([MemberGroup.SECRETARIAT, MemberGroup.ROOT])
     async def get(self):
         if self.member['group'] <= int(MemberGroup.MEMBER):
             await self.error(CanNotAccessError)
@@ -41,18 +42,20 @@ class MemberManageHandler(RequestHandler):
         elif page == 'update':
             member_id = int(self.get_argument('member_id'))
             async with Sessions() as session:
-                stmt = select(Member.name.label("name"),
-                              Member.class_seat_number.label("classseatnumber"),
-                              Member.is_global_constituency.label("is_global_constituency"),
-                              Member.group.label("group"), Member.official_name.label("official_name")).where(
+                stmt = select(Member.name,
+                              Member.class_seat_number,
+                              Member.is_global_constituency,
+                              Member.group, Member.official_name,
+                              Member.lock).where(
                     Member.id == member_id)
 
                 res = (await session.execute(stmt)).fetchone()
-            await self.render('manage/manage-update-member.html', member_id=member_id, member=res,
+            await self.render('manage/manage-update-member.html', changed_member_id=member_id, member=res,
                               member_group=MemberGroup.ChineseNameMap)
             return
 
     @reqenv
+    @require_permission([MemberGroup.SECRETARIAT, MemberGroup.ROOT], use_error_code=True)
     async def post(self):
         if self.member['group'] <= int(MemberGroup.ASSOCIATION):
             await self.error(CanNotAccessError)
@@ -72,7 +75,7 @@ class MemberManageHandler(RequestHandler):
 
                 config = await SysConfigService.inst.get_config()
 
-                err, _ = await self.register_single_member(name, mail, 'Init', group, classseatnumber,
+                err, _ = await self.register_single_member(name, mail, mail, group, classseatnumber,
                                                            is_global_constituency, official_name,
                                                            config['appointed_dates'], config['sessions'])
                 await self.error(err)
@@ -115,25 +118,57 @@ class MemberManageHandler(RequestHandler):
             await self.error(Success)
             return
 
+        elif reqtype == 'reset':
+            member_id = self.get_optional_number_arg("member_id")
+            reset = self.get_argument('reset')
+            if reset == 'true':
+                reset = True
+            elif reset == 'false':
+                reset = False
+            else:
+                await self.error(WrongParamError)
+                return
+
+            await self.set_password_reset(member_id, reset)
+            await self.error(Success)
+            return
+
+        elif reqtype == 'lock':
+            member_id = self.get_optional_number_arg("member_id")
+            lock = self.get_argument('lock')
+            if lock == 'true':
+                lock = True
+            elif lock == 'false':
+                lock = False
+            else:
+                await self.error(WrongParamError)
+                return
+
+            await self.lock_member(member_id, lock)
+            await self.error(Success)
+            return
+
     async def register_single_member(self, name: str, mail: str, password: str, group: int, classseatnumber: str,
                                      is_global_constituency: str, official_name: str, appointed_dates: int,
                                      sessions: int):
         try:
             group = int(MemberGroup(int(group)))
         except ValueError:
-            print('128')
             return WrongParamError, None
 
         try:
             classseatnumber = int(classseatnumber)
         except ValueError:
-            print("133")
             return WrongParamError, None
 
         try:
-            is_global_constituency = bool(is_global_constituency)
+            if is_global_constituency == "false":
+                is_global_constituency = False
+            elif is_global_constituency == "true":
+                is_global_constituency = True
+            else:
+                raise ValueError
         except ValueError:
-            print("139")
             return WrongParamError, None
 
         hash_pw = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt(12))
@@ -143,8 +178,10 @@ class MemberManageHandler(RequestHandler):
                                          password=base64.b64encode(hash_pw).decode('utf-8'), group=group,
                                          is_global_constituency=is_global_constituency, official_name=official_name,
                                          appointed_dates=appointed_dates,
-                                         sessions=sessions, permission_list=[]).returning(Member.id, Member.name,
-                                                                                          Member.group)
+                                         sessions=sessions, permission_list=[],
+                                         lock=int(MemberLockReason.LockByPasswordReset)).returning(
+                Member.id, Member.name,
+                Member.group)
             res = await session.execute(stmt)
             res = res.fetchone()
 
@@ -165,7 +202,12 @@ class MemberManageHandler(RequestHandler):
             return WrongParamError, None
 
         try:
-            is_global_constituency = bool(is_global_constituency)
+            if is_global_constituency == "false":
+                is_global_constituency = False
+            elif is_global_constituency == "true":
+                is_global_constituency = True
+            else:
+                raise ValueError
         except ValueError:
             return WrongParamError, None
 
@@ -186,5 +228,36 @@ class MemberManageHandler(RequestHandler):
 
                 stmt = update(Member).where(Member.id == member_id).values(
                     password=base64.b64encode(hash_pw).decode('utf-8'))
+                await session.execute(stmt)
+        return Success, None
+
+    async def set_password_reset(self, member_id, reset: bool):
+        await LogService.inst.add_log(self.member['id'],
+                                      f"{self.member['name']} set member password reset flag {reset} successfully",
+                                      'manage.member.set_password_reset.success')
+
+        async with Sessions() as session:
+            lock = MemberLockReason.UnLock
+            if reset:
+                lock = MemberLockReason.LockByPasswordReset
+
+            async with session.begin():
+                stmt = update(Member).where(Member.id == member_id).values(lock=int(lock))
+                await session.execute(stmt)
+        return Success, None
+
+    async def lock_member(self, member_id, lock: bool):
+        await LogService.inst.add_log(self.member['id'],
+                                      f"{self.member['name']} set member lock flag {lock} successfully",
+                                      'manage.member.set_lock.success')
+
+        async with Sessions() as session:
+            if lock:
+                lock = MemberLockReason.LockByAdmin
+            else:
+                lock = MemberLockReason.UnLock
+
+            async with session.begin():
+                stmt = update(Member).where(Member.id == member_id).values(lock=int(lock))
                 await session.execute(stmt)
         return Success, None

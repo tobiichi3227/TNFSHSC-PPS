@@ -1,6 +1,10 @@
 <script>
+    let vote_modal = new bootstrap.Modal(document.getElementById("voteModal"));
     function init() {
+        const emitter = mitt();
+
         let ws_link = "";
+        let sitting_id = "{{sitting_id}}";
         if (location.protocol !== "https:") {
             // for dev
             ws_link = `ws://${location.hostname}:3227/pps/be/sittingws/{{sitting_id}}`;
@@ -15,127 +19,265 @@
                     action: "connection",
                     data: {
                         member_id: route.member_id,
-                        session_id: route.session_id,
+                        session_id: route.get_session_id(),
+                        sitting_id: sitting_id,
                     },
                 })
             );
+
+            send_data(ws, "query", {"type": "vote-info"});
+
+            /*
+                TODO: Query Current Event (Vote Event)
+                If Vote Event, Show Vote UI and query vote data such as options, duration, count, ......
+            */
+            
         };
 
         ws.onmessage = (event) => {
-            console.log(event.data);
+            console.log("onmessage: ", event.data);
             let data = JSON.parse(event.data);
 
-            if (data["action"] == "update") {
-                let update_type = data["data"]["type"];
-                if (update_type == "new-impromptu-motion") {
-                    impromptu_update(data["data"]["list"], ws);
-                } else if (update_type == "to-second-motion") {
-                    impromptu_update(data["data"]["list"], ws);
-                } else if (update_type == "update-vote-option") {
-                } else if (update_type == "update-vote-count") {
+            if (data["action"] == "notify") {
+                if (data["data"]["type"] == "vote-start") {
+                    ws.send(JSON.stringify({
+                        action: "query",
+                        data: {
+                            type: "vote-info"
+                        }
+                    }));
+                    vote_modal.show();
+                } else if (data["data"]["type"] == "vote-end") {
+                    vote_modal.hide();
+                    emitter.emit("ui", "close-ui");
+                } else if (data["data"]["type"] == "interpellation-start-submit") {
+                    toast_show("開放登記質詢");
+                } else if (data["data"]["type"] == "interpellation-close-submit") {
+
+                } else if (data["data"]["type"] == "impromptu-start-submit") {
+                    toast_show("開放提臨時動議");
+                } else if (data["data"]["type"] == "impromptu-close-submit") {
+
                 }
-            } else if (data["action"] == "toggle") {
-                vote_toggle();
-            } else if (data["action"] == "notify") {
-                //TODO: 開放臨時動議或質詢登記時通知一下？
+            } else {
+                emitter.emit("ws", data);
             }
         };
 
-        // event handler init
-        interpellation_event(ws);
-        impromptu_event(ws);
+        $("button.interpellation").on("click", (event) => {
+            emitter.emit("ui", "query-interpellation");
+        });
+
+        $("button.impromptu").on("click", (event) => {
+            emitter.emit("ui", "query-impromptu");
+        })
+
+        vote_vue(ws, emitter);
+        interpellation_vue(ws, emitter);
+        impromptu_vue(ws, emitter);
     }
 
-    function interpellation_event(ws) {
-        let modal = $("#interpellationModal");
-        modal.find("button.submit").on("click", (event) => {
-            let list = [];
-            $("table#official tbody tr").each(function () {
-                let input = $(this).find("td > input");
-                if (input.is(":checked")) {
-                    list.push(parseInt(input.attr("member_id")));
+    function send_data(ws, action, data) {
+        ws.send(JSON.stringify({
+            action: action,
+            data: data
+        }));
+    }
+
+    function toast_show(text) {
+        let toastLive = document.getElementById("liveToast");
+        $(toastLive).find(".toast-body").text(text);
+
+        let toast = new bootstrap.Toast(toastLive);
+        toast.show();
+    }
+
+    function vote_vue(ws, emitter) {
+        const { createApp } = Vue;
+        const vm = createApp({
+            data() {
+                return {
+                    options: [],
+                    selected: 0
+                };
+            },
+            methods: {
+                ws_handle(data) {
+                    if (data['action'] != 'update') {
+                        return;
+                    }
+                    let type = data['data']['type'];
+                    if (type == "vote-info") {
+                        if (data['data']['is_voting']) {
+                            vote_modal.show();
+
+                            this.options = data['data']['options']
+                        }
+                    } else if (type == "update-vote-count") {
+                        data['data']['counts'].forEach((count, idx, _) => {
+                            this.options[idx].count = count;
+                        })
+                    }
+                },
+
+                ui_handle(data) {
+                    if (data == "close-ui") {
+                        this.options = [],
+                        this.selected = 0
+                    }
+                },
+
+                submit() {
+                    ws.send(
+                        JSON.stringify({
+                            action: "update",
+                            data: {
+                                type: "update-vote-count",
+                                member_id: route.member_id,
+                                index: this.selected
+                            },
+                        })
+                    );
+                },
+            },
+            mounted() {
+                emitter.on("ws", this.ws_handle);
+                emitter.on("ui", this.ui_handle);
+            },
+            delimiters: ["{", "}"],
+        });
+
+        vm.mount("#voteModal");
+    }
+
+    function interpellation_vue(ws, emitter) {
+        const { createApp } = Vue;
+        createApp({
+            data() {
+                return {
+                    officials: [],
+                    selected: [] 
                 }
-            });
-            ws.send(
-                JSON.stringify({
-                    action: "update",
-                    data: {
-                        type: "interpellation",
-                        member_id: route.member_id,
-                        list: list,
-                    },
-                })
-            );
-        });
+            },
+            methods: {
+                submit() {
+                    ws.send(
+                        JSON.stringify({
+                            action: "update",
+                            data: {
+                                type: "interpellation",
+                                member_id: route.member_id,
+                                list: this.selected,
+                            },
+                        })
+                    );
+                },
+                ui_handle(data) {
+                    if (data == "query-interpellation") {
+                        ws.send(
+                            JSON.stringify({
+                                action: "query",
+                                data: {
+                                    type: "interpellation-officials"
+                                }
+                            })
+                        )
+                    }
+                },
+                ws_handle(data) {
+                    if (data['action'] != "update") {
+                        return;
+                    }
+
+                    if (data['data']['type'] == "update-officials") {
+                        this.officials = data['data']['officials'];
+                    }
+                }
+            },
+            mounted() {
+                emitter.on("ui", this.ui_handle);
+                emitter.on("ws", this.ws_handle);
+            },
+            delimiters: ["{", "}"],
+        }).mount("#interpellationModal");
     }
 
-    function impromptu_event(ws) {
-        let modal = $("#impromptuModal");
-        modal.find("button.submit").on("click", (event) => {
-            let bill_name = modal.find("input#InputImpromptu").val();
-            if (bill_name == "" || bill_name == undefined) {
-                alert("不要傳空白的提案");
-                return;
-            }
+    function impromptu_vue(ws, emitter) {
+        const { createApp } = Vue;
+        createApp({
+            data() {
+                return {
+                    impromptus: [],
+                    bill_name: "",
+                };
+            },
+            methods: {
+                submit() {
+                    if (this.bill_name == "" || this.bill_name == undefined) {
+                        alert("不要傳空白的提案");
+                        return;
+                    }
 
-            ws.send(
-                JSON.stringify({
-                    action: "update",
-                    data: {
-                        type: "new-impromptu-motion",
-                        bill_name: bill_name,
-                        member_id: route.member_id,
-                    },
-                })
-            );
+                    ws.send(
+                        JSON.stringify({
+                            action: "update",
+                            data: {
+                                type: "new-impromptu-motion",
+                                bill_name: this.bill_name,
+                                member_id: route.member_id,
+                            },
+                        })
+                    );
+                },
+                to_second_motion(event) {
+                    event.currentTarget.setAttribute("disabled", "disabled");
+                    ws.send(
+                        JSON.stringify({
+                            action: "update",
+                            data: {
+                                type: "to-second-motion",
+                                member_id: route.member_id,
+                                index: event.currentTarget.getAttribute(
+                                    "index"
+                                ),
+                            },
+                        })
+                    );
+                },
+                update(impromptu_list) {
+                    this.impromptus.length = 0; //  clear list
+                    impromptu_list.forEach((impromptu) => {
+                        this.impromptus.push(impromptu);
+                    });
+                },
+                ws_handle(data) {
+                    if (data["action"] == "update") {
+                        let type = data['data']['type'];
+                        if (type == "new-impromptu-motion" || type == "to-second-motion") {
+                            this.update(data["data"]["list"]);
+                        } 
+                    }
+                },
+                ui_handle(data) {
+                    if (data == "query-impromptu") {
+                        ws.send(
+                            JSON.stringify({
+                                action: "query",
+                                data: {
+                                    type: "impromptus",
+                                },
+                            })
+                        );
 
-            modal.find("#InputImpromptu").val("");
-        });
-
-        let checkboxes = modal.find("input[type=checkbox]");
-        checkboxes.change(function () {
-            checkboxes.filter(":checked").map(function () {
-                ws.send(
-                    JSON.stringify({
-                        action: "update",
-                        data: {
-                            type: "to-second-motion",
-                            member_id: route.member_id,
-                            index: $(this).attr("index"),
-                        },
-                    })
-                );
-            });
-        });
-    }
-
-    function impromptu_update(impromptu_list, ws) {
-        let table_body = $("#impromptuTable").find("tbody");
-        table_body.html("");
-        impromptu_list.forEach((impromptu, idx) => {
-            table_body.append(
-                `
-                <tr>
-                    <th scope="col">${impromptu["bill_name"]}</th>
-                    <td>${impromptu["count"]}</td>
-                    <td>
-                        <input type="checkbox" class="form-check" index=${idx} />
-                    </td>
-                </tr> 
-                `
-            );
-        });
-
-        // 因為html內容被更新了，所以原本的EventListener就消失了，因此需要重新註冊
-        // 投票也是同樣原因
-        impromptu_event(ws);
-    }
-
-    function vote_toggle() {
-        let voteModal = new bootstrap.Modal(
-            document.getElementById("voteModal")
-        );
-        voteModal.toggle();
+                    }
+                }
+            },
+            mounted() {
+                emitter.on("ws", this.ws_handle);
+                emitter.on("ui", this.ui_handle);
+            },
+            delimiters: ["{", "}"],
+        }).mount("#impromptuModal");
     }
 </script>
 
@@ -153,7 +295,7 @@
             </div>
             <div class="modal-body">
                 <form id="interpellationForm">
-                    <table class="table" id="official">
+                    <table class="table" id="officialTable">
                         <thead>
                             <tr>
                                 <th scope="col">官員</th>
@@ -162,22 +304,21 @@
                         </thead>
                         <tbody>
                             <!-- TODO: 可以使用window.localStorage來存狀態 -->
-                            {% for official in officials %}
-                            <tr>
-                                <th scope="row">{{official.official_name}}</th>
+                            <tr v-for="official in officials">
+                                <th scope="row">{ official.official_name }</th>
                                 <td>
                                     <input
                                         type="checkbox"
                                         class="form-check"
-                                        member_id="{{official.id}}"
+                                        v-model="selected"
+                                        :value=official.id
                                     />
                                 </td>
-                            </tr>
-                            {% end %}
+                            </tr> 
                         </tbody>
                     </table>
                 </form>
-                <button type="button" class="btn btn-primary submit">
+                <button type="button" class="btn btn-primary" @click="submit">
                     登記
                 </button>
                 <div id="print"></div>
@@ -186,6 +327,7 @@
     </div>
 </div>
 
+<!-- FIXME: 點右上角的XX會爛掉，點Close似乎沒用，vote-end的時候應該要讓畫面消失 -->
 <div
     aria-hidden="true"
     aria-labelledby="exampleModalLabel"
@@ -198,37 +340,36 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="exampleModalLabel">投票</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <!-- <button
+                    type="button"
+                    class="btn-close"
+                    data-bs-dismiss="modal"
+                    aria-label="Close"
+                ></button> -->
             </div>
             <div class="modal-body">
-                <table class="table">
+                <table class="table" id="voteTable">
                     <thead>
                         <tr>
-                            <!-- <th scope="col">同意</th>
-                            <th scope="col">不同意</th>
-                            <th scope="col">棄權</th> -->
+                            <th v-for="option in options">{ option.option }</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr id="VoteCount">
-                            <!-- <td>1</td>
-                            <td>1</td>
-                            <td>1</td> -->
+                            <td v-for="option in options">{ option.count }</td>
                         </tr>
                         <tr id="InputVote">
-                            <!-- <td>
-                                <input type="radio" name="vote-option" />
+                            <td v-for="(_, idx) in options">
+                                <input
+                                    type="radio"
+                                    v-model="selected"
+                                    v-bind:value=idx
+                                />
                             </td>
-                            <td>
-                                <input type="radio" name="vote-option" />
-                            </td>
-                            <td>
-                                <input type="radio" name="vote-option" />
-                            </td> -->
                         </tr>
                     </tbody>
                 </table>
-                <button class="btn btn-primary submit">送出</button>
+                <button type="button" class="btn btn-primary" @click="submit">送出</button>
             </div>
         </div>
     </div>
@@ -252,10 +393,15 @@
                     >
                     <input
                         type="text"
+                        v-model="bill_name"
                         id="InputImpromptu"
                         class="form-control my-2"
                     />
-                    <button type="button" class="btn btn-primary submit my-2">
+                    <button
+                        @click="submit"
+                        type="button"
+                        class="btn btn-primary my-2"
+                    >
                         Submit
                     </button>
                 </form>
@@ -263,25 +409,26 @@
                     <thead>
                         <tr>
                             <th scope="col">議案名稱</th>
+                            <th scope="col">提案人</th>
                             <th scope="col">附議人數</th>
                             <th scope="col">附議</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <!-- TODO: 可以使用window.localStorage來存狀態 -->
-                        {% for idx, impromptu in enumerate(impromptus) %}
-                        <tr>
-                            <th scope="col">{{impromptu['bill_name']}}</th>
-                            <td>{{impromptu['count']}}</td>
-                            <td>
+                        <tr v-for="(impromptu, idx) in impromptus">
+                            <th>{ impromptu.bill_name }</th>
+                            <th>{ impromptu.name }</th>
+                            <th v-if="impromptu.count >= 1" style="background-color: red;">{ impromptu.count }</th>
+                            <th v-else>{ impromptu.count }</th>
+                            <th>
                                 <input
                                     type="checkbox"
                                     class="form-check"
-                                    index="{{idx}}"
+                                    v-bind:index="idx"
+                                    @change="to_second_motion"
                                 />
-                            </td>
+                            </th>
                         </tr>
-                        {% end %}
                     </tbody>
                 </table>
             </div>
@@ -289,14 +436,24 @@
     </div>
 </div>
 
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+  <div id="liveToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+    <div class="toast-header">
+      <strong class="me-auto">通知</strong>
+      <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+    </div>
+    <div class="toast-body">
+    </div>
+  </div>
+</div>
+
 <div class="row">
-    <div class="col-12 col-lg-3 pt-3 pt-lg-2 d-flex d-lg-block">
-        <!-- 嬌羞的議員 -->
+    <!-- <div class="col-12 col-lg-3 pt-3 pt-lg-2 d-flex d-lg-block">
         <button class="btn btn-primary mx-auto speak">發言/舉手</button>
         <button class="btn btn-primary mx-auto temporary-absence">
             暫時離席
         </button>
-    </div>
+    </div> -->
     <div class="col-12 col-lg-3 pt-3 pt-lg-2 mt-3 d-flex d-lg-block">
         <button
             class="btn btn-primary mx-auto interpellation"
@@ -305,6 +462,7 @@
         >
             質詢登記
         </button>
+        <!-- TODO: F5後顯示Already Second Motion -->
         <button
             class="btn btn-primary mx-auto impromptu"
             data-bs-toggle="modal"

@@ -5,12 +5,58 @@
             activeNav();
 
             let form = $("#configForm");
-            form.find("button.submit").on("click", (event) => {
+            form.find("#submit").on("click", (event) => {
                 let location = form.find("#InputLocation").val();
                 let chairperson = form.find("#InputChairperson").val();
-                let secretary = form.find("#InputSecretary");
+                let secretary = form.find("#InputSecretary").val();
+                if (location == "" || chairperson == "" || secretary == "") {
+                    alert("不可為空");
+                    return;
+                }
+                
+                $.post("/pps/be/core/sitting/config/{{sitting_id}}", {
+                    reqtype: "config",
+                    location: location,
+                    chairperson: chairperson,
+                    secretary: secretary,
+                }, (res) => {
+                    if (res[0] == 'E') {
+                        if (res == "Emembernoext") {
 
-                //TODO: 把它實現完
+                        } else if (res == "Eparam") {
+
+                        }
+                    }
+                });
+            });
+
+            $("#csv").on("click", (event) => {
+                $.post("/pps/be/core/sitting/config/{{sitting_id}}", {
+                    reqtype: "csv",
+                }, (res) => {
+                    let url = `/pps/download/${res}.csv`;
+                    // url = "/pps/download/abc.txt";
+                    let downloadLink = document.createElement("a");
+
+                    downloadLink.href = url;
+                    downloadLink.setAttribute('download', '');
+                    downloadLink.target = 'downloadIframe';
+                    downloadLink.click();
+                })
+            });
+
+            $("#json").on("click", (event) => {
+                $.post("/pps/be/core/sitting/config/{{sitting_id}}", {
+                    reqtype: "json",
+                }, (res) => {
+                    let url = `/pps/download/${res}.json`;
+                    let downloadLink = document.createElement("a");
+
+                    downloadLink.href = url;
+                    downloadLink.setAttribute('download', '');
+                    downloadLink.target = 'downloadIframe';
+                    downloadLink.click();
+                })
             });
         }
     </script>
@@ -19,23 +65,27 @@
         <form class="col mt-lg-2" id="configForm">
             <div class="mb-3">
                 <label for="InputLocation">修改地點</label>
-                <input class="form-control" id="InputLocation" type="text" />
+                <input class="form-control" id="InputLocation" type="text" value="{{res[0]}}"/>
             </div>
 
             <div class="mb-3">
-                <label for="InputChairperson">主席</label>
-                <input class="form-control" id="InputChairperson" type="text" />
+                <label for="InputChairperson" >主席ID</label>
+                <input class="form-control" id="InputChairperson" type="text" value="{{res[1]}}"/>
             </div>
 
             <div class="mb-3">
-                <label for="InputSecretary">秘書長</label>
-                <input class="form-control" id="InputSecretary" type="text" />
+                <label for="InputSecretary">秘書長ID</label>
+                <input class="form-control" id="InputSecretary" type="text" value="{{res[2]}}"/>
             </div>
-            <button class="btn btn-primary submit">確定</button>
+            <button class="btn btn-primary" type="button" id="submit">確定</button>
         </form>
-        <button class="btn btn-primary csv my-lg3">導出簽到CSV檔</button>
-        <button class="btn btn-primary log my-lg-3">導出會議記錄</button>
-        <button class="btn btn-primary proceedings my-lg-3">導出議事錄</button>
+        <button class="btn btn-primary csv my-lg3" id="csv">
+            導出簽到CSV檔
+        </button>
+
+        <button class="btn btn-primary my-lg-3" id="json">導出會議JSON</button>
+        <!-- <button class="btn btn-primary log my-lg-3">導出會議記錄</button>
+        <button class="btn btn-primary proceedings my-lg-3">導出議事錄</button> -->
         {% end %}
     </div>
 </div>

@@ -1,9 +1,47 @@
 {% extends 'manage-nav-template.html' %} {% block head %}
 <div class="row mt-2">
     <!-- -->
-    {% from util.numeric import num2chinese_num %}
+    {% from utils.numeric import num2chinese_num %}
     <script src="https://unpkg.com/chinese-numbering@1.x/bundle/iife.js"></script>
     <script>
+        function startMeet(sitting_id) {
+            // $("#startMeet").on("click", function (res) {
+                $.post(
+                    "/pps/be/manage/sittings",
+                    {
+                        reqtype: "start",
+                        sitting_id: sitting_id,
+                    },
+                    (res) => {
+                        if (res[0] == 'E') {
+                            route.reload();
+                        } else {
+                            route.reload();
+                        }
+                    }
+                );
+            // });
+        }
+
+        function endMeet(sitting_id) {
+            // $("#startMeet").on("click", function (res) {
+                $.post(
+                    "/pps/be/manage/sittings",
+                    {
+                        reqtype: "close",
+                        sitting_id: sitting_id,
+                    },
+                    (res) => {
+                        if (res[0] == 'E') {
+                            route.reload();
+                        } else {
+                            route.reload();
+                        }
+                    }
+                );
+            // });
+        }
+
         function init() {
             activeNav();
 
@@ -11,11 +49,13 @@
             let form = modal.find("form#createForm");
             let appointed_dates = "{{num2chinese_num(appointed_dates)}}";
             let sessions = "{{num2chinese_num(sessions)}}";
-            let sitting_type = 2;
+            let sitting_type = 1;
+
+            $("#endMeet").on("click", (res) => {});
 
             form.find("div#SittingName")
                 .find("span")
-                .html(`第${appointed_dates}屆第${sessions}會期第常會`);
+                .html(`第${appointed_dates}屆第${sessions}會期第???次常會`);
 
             form.find("select#selectSittingType").on(
                 "change",
@@ -33,12 +73,18 @@
                             );
                     } else {
                         form.find("input#InputSittingTimes").show();
-                        let html = form
-                            .find("div#SittingName")
-                            .find("span")
-                            .html();
                         sitting_type = parseInt(val);
                         if (sitting_type == 1) {
+                            form
+                                .find("div#SittingName")
+                                .find("span")
+                                .html(`第${appointed_dates}屆第${sessions}會期第???次常會`);
+                        } else {
+                        form
+                            .find("div#SittingName")
+                            .find("span")
+                            .html(`第${appointed_dates}屆第${sessions}會期第???次臨時會`);
+
                         }
                     }
                 }
@@ -49,6 +95,7 @@
 
                 let val = $(this).val();
                 if (isNaN(val)) {
+                    if (val.length == 0) return;
                     alert("不要亂打");
                     $(this).val("");
                     return;
@@ -58,7 +105,7 @@
                     return;
                 }
 
-                let number = cn.numberToChinese(val, "t");
+                number = cn.numberToChinese(val, "t");
                 let name = `第${appointed_dates}屆第${sessions}會期第${number}次`;
                 console.log(sitting_type);
                 if (sitting_type == 1) {
@@ -194,15 +241,38 @@
             </tr>
         </thead>
         <tbody>
+            <!--  -->
+            {% from services.core import SittingCoreManageService %} 
+            <!--  -->
+            {% from utils.error import NotExistError %} 
+            <!--  -->
             {% for sitting in sittings %}
             <tr>
                 <th scope="row">{{ sitting['id'] }}</th>
                 <td>{{ sitting['name'] }}</td>
                 <td>{{ sitting['location'] }}</td>
                 <td>{{ sitting['time'] }}</td>
+                {% if SittingCoreManageService.inst.get_sittingcore(sitting['id']) == NotExistError %}
                 <td>
-                    <a href="/pps/core/sitting/{{sitting['id']}}/">Go To</a>
+                    <button
+                        class="btn btn-danger p-1"
+                        id="startMeet"
+                        onclick="startMeet({{ sitting['id'] }})"
+                    >
+                        開啟會議
+                    </button>
                 </td>
+                {% else %}
+                <td>
+                    <button
+                        class="btn btn-danger p-1"
+                        id="endMeet"
+                        onclick="endMeet({{ sitting['id'] }})"
+                    >
+                        關閉會議
+                    </button>
+                </td>
+                {% end %}
             </tr>
             {% end %}
         </tbody>

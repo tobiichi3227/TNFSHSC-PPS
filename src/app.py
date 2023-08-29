@@ -5,7 +5,8 @@
 
 import tornado.web
 
-from urls import urls, DefaultHandler
+from urls import urls
+from handlers.base import DefaultHandler
 
 import config
 

@@ -54,7 +54,7 @@ class _MemberLockedError(Error):
         return 'Elocked'
 
 
-MemberLockedError = _MemberNotFoundError()
+MemberLockedError = _MemberLockedError()
 
 
 class _WrongParamError(Error):

@@ -35,6 +35,14 @@ MemberGroup.ChineseNameMap = {
     5: '超級使用者',
 }
 
+
+# TODO: 這個要改成IntFlag
+class MemberLockReason(IntEnum):
+    UnLock = 0,
+    LockByPasswordReset = 1,
+    LockByAdmin = 2,
+
+
 MemberAndSittingsRelationship = Table("MemberAndSittingsRelationship", Base.metadata,
                                       Column("member_id", ForeignKey("Member.id"), primary_key=True),
                                       Column("sittings_id", ForeignKey("Sittings.id"), primary_key=True))
@@ -59,6 +67,7 @@ class Member(Base):
     appointed_dates: Mapped[int] = mapped_column(comment="屆數")
     sessions: Mapped[int] = mapped_column(comment="會期")
     permission_list: Mapped[List[int]] = mapped_column(postgresql.ARRAY(Integer))
+    lock: Mapped[int] = mapped_column(default=MemberLockReason.UnLock)
     absence_records: Mapped[List["AbsenceRecord"]] = relationship(back_populates="member")
     joined_sittings: Mapped[List["Sittings"]] = relationship(secondary=MemberAndSittingsRelationship,
                                                              back_populates="participants")
@@ -101,9 +110,6 @@ class Sittings(Base):
                                                back_populates="associate_sittings")
     delete_status: Mapped[bool] = mapped_column(default=False)
 
-    def __repr__(self):
-        return f"<會議(第{self.appointed_dates}屆第{self.sessions}會期第{self.sitting}次會議\n 開始時間:{self.start_time} 結束時間:{self.end_time})\n 參與人員: {self.participants}\n 議案: {self.bills}>"
-
 
 class AbsenceRecord(Base):
     __tablename__ = 'AbsenceRecord'
@@ -118,18 +124,28 @@ class AbsenceRecord(Base):
     delete_status: Mapped[bool] = mapped_column(default=False)
 
 
+class BillSource(IntEnum):
+    Default = 0,
+    Impromptu = 1,
+
+
 class Bill(Base):
     __tablename__ = 'Bill'
 
     bill_id_seq = Sequence("bill_id_seq", start=1)
     id: Mapped[int] = mapped_column(bill_id_seq, server_default=bill_id_seq.next_value(), primary_key=True)
     name: Mapped[str]
+    desc: Mapped[Optional[str]]
+    data: Mapped[Optional[str]] = mapped_column(JSON)
+    source: Mapped[int]
 
+    # for tree use
     sitting_id: Mapped[Optional[int]] = mapped_column(ForeignKey(Sittings.id, onupdate="CASCADE", ondelete="CASCADE"))
+    parent_id: Mapped[Optional[int]] = mapped_column(default=-1)
+    root_id: Mapped[Optional[int]] = mapped_column(default=-1)
 
     associate_sittings: Mapped[List["Sittings"]] = relationship(secondary=SittingAndBillRelationship,
                                                                 back_populates="bills")
-    data: Mapped[Optional[str]] = mapped_column(JSON)
     delete_status: Mapped[bool] = mapped_column(default=False)
 
 
@@ -165,9 +181,12 @@ Sessions = async_sessionmaker()
 async def connect_db(db):
     print("db init")
 
+    # db_engine = create_async_engine(
+    #     f"postgresql+asyncpg://{config.DB_UESR}:{config.DB_USER_PW}@{config.DB_IP}/pps_test",
+    #     echo=True, max_overflow=0, pool_size=3, pool_timeout=10, pool_recycle=1)
     db_engine = create_async_engine(
         f"postgresql+asyncpg://{config.DB_UESR}:{config.DB_USER_PW}@{config.DB_IP}/pps_test",
-        echo=True, max_overflow=0, pool_size=3, pool_timeout=10, pool_recycle=1)
+        max_overflow=0, pool_size=3, pool_timeout=10, pool_recycle=1)
     async with db_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
@@ -175,3 +194,7 @@ async def connect_db(db):
     db.Sessions = Session
     global Sessions
     Sessions = Session
+
+
+def get_session():
+    return Sessions

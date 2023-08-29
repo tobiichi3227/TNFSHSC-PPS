@@ -3,8 +3,6 @@
     @day: 2023/7/3
 """
 
-from handlers.base import DefaultHandler
-
 from handlers.index import IndexHandler
 from handlers.login import LoginHandler
 from handlers.about import AboutHandler
@@ -23,6 +21,7 @@ from handlers.core.checkin import CheckinManageHandler
 from handlers.core.agenda import AgendaManageHandler, AgendaWebSocketHandler
 from handlers.core.config import SittingConfigManageHandler
 from handlers.core.ppt import PPTPeviewHandler
+from handlers.core.ppt import PPTWebSocketHandler
 
 urls = [
     ('/info', InfoHandler),
@@ -30,6 +29,7 @@ urls = [
     ('/login', LoginHandler),
     ('/sitting/(\d+)', SittingHandler),
     ('/sitting/ppt/(\d+)', PPTPeviewHandler),
+    ('/sitting/pptws/(\d+)', PPTWebSocketHandler),
     ('/sittingws/(\d+)', SittingWebSocketHandler),
     ('/join-sitting/(\d+)', JoinSittingHandler),
     ('/about', AboutHandler),
@@ -47,5 +47,3 @@ urls = [
     ('/core/sitting/agendaws/(\d+)', AgendaWebSocketHandler),
     ('/core/sitting/config/(\d+)', SittingConfigManageHandler),
 ]
-
-DefaultHandler = DefaultHandler

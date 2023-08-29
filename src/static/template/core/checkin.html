@@ -41,16 +41,18 @@
             </tr>
         </thead>
         <tbody>
-            {% for member in members %}
+            {% from handlers.core.checkin import CheckinStatus %}
+            {% for member_id, member in members.items() %}
             <tr>
-                <th scope="row">{{ member.id }}</th>
-                <td>{{ member.name }}</td>
-                <td>{{ member.classseatnumber }}</td>
-                {% if member_session_id.get(member.id) == None %}
+                <th scope="row">{{ member_id }}</th>
+                <td>{{ member["name"] }}</td>
+                <td>{{ member["number"] }}</td>
+
+                {% if member['checkin_status'] == int(CheckinStatus.NotEnter) %}
                 <td>
                     <input
                         type="checkbox"
-                        onclick="checkin({{member.id}}, this)"
+                        onclick="checkin({{ member_id }}, this)"
                     />
                 </td>
                 {% else %}
@@ -58,17 +60,19 @@
                     <input type="checkbox" checked disabled />
                 </td>
                 {% end %} 
-                {% if member_session_id.get(member.id) != "checkout" %}
+
+                {% if member['checkin_status'] == int(CheckinStatus.Checkout) %}
                 <td>
-                    <input
-                        type="checkbox"
-                        id="checkout-{{member.id}}"
-                        onclick="checkout({{member.id}}, this)"
-                    />
+                    <input type="checkbox" checked disabled />
                 </td>
                 {% else %}
                 <td>
-                    <input type="checkbox" checked disabled />
+                    <input 
+                        type="checkbox" 
+                        id="checkout-{{ member_id }}"
+                        onclick="checkout({{ member_id }}, this)"
+                        disabled 
+                    />
                 </td>
                 {% end %}
             </tr>

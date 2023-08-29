@@ -7,19 +7,21 @@
 
 from sqlalchemy import select, insert
 
+from services.core import SittingCoreManageService
 from services.log import LogService
-from util.numeric import num2chinese_num
-from util.error import Success, WrongParamError
+from utils.numeric import num2chinese_num
+from utils.error import Success, WrongParamError, ExistError, NotExistError
 
-from ..base import RequestHandler, reqenv
+from ..base import RequestHandler, reqenv, require_permission
 
-from models.models import Sessions, Sittings, SittingType
+from models.models import Sessions, Sittings, SittingType, MemberGroup
 
 from services.sysconfig import SysConfigService
 
 
 class SittingsManageHandler(RequestHandler):
     @reqenv
+    @require_permission([MemberGroup.SECRETARIAT, MemberGroup.ROOT])
     async def get(self):
         async with Sessions() as session:
             async with session.begin():
@@ -56,6 +58,7 @@ class SittingsManageHandler(RequestHandler):
                           sessions=config['sessions'])
 
     @reqenv
+    @require_permission([MemberGroup.SECRETARIAT, MemberGroup.ROOT], use_error_code=True)
     async def post(self):
         reqtype = self.get_argument('reqtype')
         if reqtype == 'create':
@@ -86,3 +89,35 @@ class SittingsManageHandler(RequestHandler):
                                           'manage.sittings.create.success')
 
             await self.error(Success)
+
+        elif reqtype == 'start':
+            sitting_id = int(self.get_argument('sitting_id'))
+
+            if (await SittingCoreManageService.inst.new_sittingcore(sitting_id)) != ExistError:
+                await LogService.inst.add_log(self.member['id'],
+                                              f"{self.member['name']} start a sitting<id: {sitting_id}> successfully",
+                                              'manage.sittings.start')
+                await self.error(Success)
+                return
+
+            await LogService.inst.add_log(self.member['id'],
+                                          f"{self.member['name']} start a sitting<id: {sitting_id}> failure because of sitting existing",
+                                          'manage.sittings.start.failure')
+            await self.error(ExistError)
+            return
+
+        elif reqtype == 'close':
+            sitting_id = int(self.get_argument('sitting_id'))
+
+            if (await SittingCoreManageService.inst.close_sittingcore(sitting_id)) != NotExistError:
+                await LogService.inst.add_log(self.member['id'],
+                                              f"{self.member['name']} close a sitting<id: {sitting_id}> successfully",
+                                              'manage.sittings.close')
+                await self.error(Success)
+                return
+
+            await LogService.inst.add_log(self.member['id'],
+                                          f"{self.member['name']} close a sitting<id: {sitting_id}> failure because of sitting not-existing",
+                                          'manage.sittings.close.failure')
+            await self.error(NotExistError)
+            return

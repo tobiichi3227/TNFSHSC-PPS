@@ -5,6 +5,14 @@ var route = new function() {
     this.member_id = null;
     this.session_id = null;
 
+    this.get_session_id = function() {
+        return this.session_id;
+    }
+
+    this.set_session_id = function(session_id) {
+        this.session_id = session_id;
+    }
+
     this.init = function() {
         this.main_navbar = $('.main-navbar');
 

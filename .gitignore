@@ -5,7 +5,7 @@ node_modules
 package-lock.json
 package.json
 pyrightconfig.json
-config.py
+/src/config.py
 runserver.sh
 .vscode/
 references.md

@@ -40,7 +40,7 @@
             emitter.emit("ws", data);
         };
 
-        textVue(ws, emitter);
+        sleepVue(ws, emitter);
     }
 
     function send_data(ws, action, data) {
@@ -50,53 +50,57 @@
         }));
     }
 
-    function textVue(ws, emitter) {
+    function sleepVue(ws, emitter) {
         const { createApp } = Vue;
         createApp({
             data() {
                 return {
-                    agenda: "",
-                    bill_name: "",
+                    duration: 0,
                 }
             },
+
+            computed: {
+                duration_format() {
+                    let sec = this.duration % 60;
+                    if (sec == 0) {
+                        sec = "00";
+                    } else if (sec < 10) {
+                        sec = `0${sec}`;
+                    }
+
+                    let minute = parseInt(this.duration / 60);
+                    return `${minute}:${sec}`;
+                },
+            },
+
             methods: {
                 ws_handle(data) {
                     let agenda_type = data['data']['type'];
                     if (data['action'] == "notify") {
-                        if (agenda_type == "next-agenda") {
-                            send_data(ws, "query", {type: "current-agenda"});
-                        } else if (agenda_type == "vote-start") {
-                            if (data['data']['is_free']) {
-                                location.href = "/pps/sitting/ppt/{{sitting_id}}/?page=free-vote";
-                            } else {
-                                location.href = "/pps/sitting/ppt/{{sitting_id}}/?page=no-free-vote";
-                            }
-                        } else if (agenda_type == "sitting-pause") {
-                            location.href = "/pps/sitting/ppt/{{sitting_id}}/?page=sleep"
+                        if (agenda_type == "sleep-pause-end") {
+                            clearInterval(this.timerID);
+                            this.duration = 0;
+                        } else if (agenda_type == "next-agenda") {
+                            location.href = "/pps/sitting/ppt/{{sitting_id}}/";
                         }
                     }
 
                     if (data['action'] == "update") {
-                        this.agenda = data['data']['text'];
-
-                        if (agenda_type == "proposal" && data['data']['bill_name'] != undefined) {
-                            let vote_info = data['data']['vote_info'];
-                            if (vote_info['is_start'] && !vote_info['is_end'] && vote_info['is_free']) {
-                                location.href = "/pps/sitting/ppt/{{sitting_id}}/?page=free-vote";
-                            } else if (vote_info['is_start'] && !vote_info['is_end'] && !vote_info['is_free']) {
-                                location.href = "/pps/sitting/ppt/{{sitting_id}}/?page=no-free-vote";
-                            }
-                            this.bill_name = data['data']['bill_name'];
-                        } else if (agenda_type == "interpellations") { 
-                            location.href = "/pps/sitting/ppt/{{sitting_id}}/?page=interpellation";
-                            // route.go("/pps/sitting/ppt/{{sitting_id}}/?page=interpellation")
-                        } else if (agenda_type == "sleep") {
-                            location.href = "/pps/sitting/ppt/{{sitting_id}}/?page=sleep";
+                        if (data['data']['type'] == "sleep") {
+                            this.duration = data['data']['duration'] - data['data']['run_times'];
+                            this.timerID = setInterval(this.timer.bind(this), 1000);
                         } else {
-                            this.bill_name = '';
+                            location.href = "/pps/sitting/ppt/{{sitting_id}}/";
                         }
                     }
-                }
+                },
+
+                timer() {
+                    if (this.duration == 0) {
+                        return;
+                    }
+                    this.duration--;
+                },
             },
 
             mounted() {
@@ -104,7 +108,7 @@
             },
 
             delimiters: ["{", "}"],
-        }).mount("#ppt");
+        }).mount("#duration");
     }
 </script>
 
@@ -135,11 +139,10 @@
 
     <div class="row justify-content-center my-5" id="ppt">
         <div class="col-8 text-center my-5 text-center text">
-            { agenda }
+            休會
         </div>
-
-        <div class="col-8 text-center my-1 text-center text" v-if="bill_name.length != 0">
-            { bill_name }
+        <div class="col-8 text-center my-5 text-center text" id="duration">
+            { duration_format }
         </div>
     </div>
 </div>

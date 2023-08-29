@@ -1,183 +1,369 @@
-import hashlib
-import json
 from urllib.parse import urlparse
 
-import tornado
+import tornado.websocket
+import ujson
 
-from services.core import SittingCoreService, ClientType
-from ..base import RequestHandler, reqenv
-
-from models.models import Sessions, Member, AbsenceRecord
-from ..manage import bill
+from models.models import MemberGroup
+from services.agenda.impromptu import ImpromptuAgenda
+from services.agenda.interpellation import InterpellationAgenda
+from services.agenda.proposal import ProposalAgenda
+from services.core import SittingCoreManageService, SittingCore, ClientType
+from utils.error import NotExistError, Success, WrongParamError
+from ..base import RequestHandler, reqenv, require_permission
 
 
 class AgendaManageHandler(RequestHandler):
     @reqenv
+    @require_permission([MemberGroup.SECRETARIAT, MemberGroup.ROOT])
     async def get(self, sitting_id):
-        agenda = [
-            {
-                "type": "text",
-                "name": "主席致詞"
-            },
-            {
-                "type": "text",
-                "name": "施政報告"
-            },
-            {
-                "type": "proposal-discussion",
-                "name": "提案討論",
-                "list": [  # 在database中只存bill id
-                    {
-                        "type": "bill-with-sub-bills",
-                        "name": "議事系統專法一讀",
-                        "list": [
-                            {
-                                "type": "bill-with-sub-bills",
-                                "name": "第一條",
-                                "list": [
-                                    {
-                                        "type": "bill",
-                                        "name": "第一條之一",
-                                        "vote-result": {
-                                            "同意": 10,
-                                            "不同意": 1,
-                                            "棄權": 0,
-                                        }
-                                    },
-                                    {
-                                        "type": "bill",
-                                        "name": "第一條之二",
-                                        "vote-result": {
-                                            "同意": 10,
-                                            "不同意": 1,
-                                            "棄權": 0,
-                                        }
-                                    },
-                                ]
-                            }
-                        ]
-                    },
-                    {
-                        "type": "bill-with-sub-bills",
-                        "name": "議事系統專法一讀",
-                        "list": [
-                            {
-                                "type": "bill-with-sub-bills",
-                                "name": "第一條",
-                                "list": [
-                                    {
-                                        "type": "bill",
-                                        "name": "第一條之一",
-                                        "vote-result": {
-                                            "同意": 10,
-                                            "不同意": 1,
-                                            "棄權": 0,
-                                        }
-                                    },
-                                ]
-                            }
-                        ]
-                    },
-                    {
-                        "type": "bill-with-sub-bills",
-                        "name": "議事系統專法二讀",
-                        "list": [
-                            {
-                                "type": "bill",
-                                "name": "第二條",
-                                "vote-result": {}
-                            }
-                        ]
-                    }
-                ]
-            },
-            {
-                "type": "interpellations",
-                "name": "會務詢答",
-                "list": [
-                    {
-                        "type": "interpellation",
-                        "member": "105",
-                        "officials": []
-                    },
-                ]
-            },
-            {
-                "type": "impromptu-motion",
-                "name": "臨時動議",
-                "list": [  # 在database中只存bill id
-                    {
-                        "type": "impromptu-bill-with-sub-bills",
-                        "member": "208",
-                        "second-motion-count": 2,
-                        "name": "議事系統專法二讀",
-                        "list": [
-                            {
-                                "type": "bill-with-sub-bills",
-                                "name": "第一條",
-                                "list": [
-                                    {
-                                        "type": "bill",
-                                        "name": "第一條之一"
-                                    },
-                                ]
-                            }
-                        ]
-                    },
-                    {
-                        "type": "impromptu-bill",
-                        "member": "208",
-                        "second-motion-count": 3,
-                        "name": "......for ",
-                        "vote-result": {
+        if (core := SittingCoreManageService.inst.get_sittingcore(int(sitting_id))) is NotExistError:
+            await self.render(error=NotExistError)
+            return
 
-                        }
-                    }
-                ]
-            },
-            {"type": "text",
-             "name": "主席結語"},
-            {"type": "text",
-             "name": "散會"}
-        ]
-
-        await self.render('core/agenda.html', sitting_id=sitting_id, agenda=agenda)
+        await self.render('core/agenda.html', sitting_id=sitting_id, agenda=core.agenda,
+                          proposal_html=core.proposal.get_html_content(), sitting_pause=core.is_pause,
+                          is_start=core.is_start, is_end=core.is_end)
 
     @reqenv
-    async def post(self):
+    @require_permission([MemberGroup.SECRETARIAT, MemberGroup.ROOT], use_error_code=True)
+    async def post(self, sitting_id):
+        if (core := SittingCoreManageService.inst.get_sittingcore(int(sitting_id))) is NotExistError:
+            await self.error(NotExistError)
+            return
+
         reqtype = self.get_argument("reqtype")
-        if reqtype == "new-agenda":
-            pass
+        if reqtype == "new-agenda-text":
+            text = self.get_argument("text")
+            core.agenda_add_text(text)
+            await self.error(Success)
+
         elif reqtype == "sitting-start":
-            # SittingCoreService.
-            pass
+            core.set_sitting_start()
+
         elif reqtype == "sitting-stop":
-            pass
+            await core.set_sitting_end()
+
         elif reqtype == "sitting-pause":
-            pass
+            duration = self.get_optional_number_arg("duration")
+            if duration is None or duration <= 0:
+                await self.error(WrongParamError)
+
+            core.set_sitting_pause(duration * 60)
 
 
 class AgendaWebSocketHandler(tornado.websocket.WebSocketHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
-        SittingCoreService.inst.register_callback_func(self.write_message, id(self), ClientType.SECRETARIAT)
+        self.sitting_id = None
 
     async def action_handle(self, action: str, data):
-        if action == "new-vote-option":
-            pass
-        pass
+        core: SittingCore = SittingCoreManageService.inst.get_sittingcore(self.sitting_id)
+
+        if action == "update":
+            data_type = data['type']
+
+            if data_type == "start-vote":
+                if core.current_agenda is None or core.current_agenda.get_type() not in ['impromptu-motion',
+                                                                                         'proposal-discussion']:
+                    return
+
+                bill_id = int(data['bill_id'])
+                options = data['options']
+                duration = int(data['duration'])
+                free = data['free']
+
+                if bill_id != core.current_agenda.get_curr_bill_id():
+                    return
+
+                core.current_agenda.vote_init(options, duration, free)
+                core.current_agenda.vote_start()
+
+                boardcast_data = {
+                    "action": "notify",
+                    "data": {
+                        "type": "vote-start",
+                        "is_free": free,
+                    }
+                }
+                core.send_boardcast(ujson.dumps(boardcast_data),
+                                    ClientType.MEMBER | ClientType.SECRETARIAT | ClientType.PPT)
+                core.add_timetag(data_type)
+
+            elif data_type == "without-objection":
+                if core.current_agenda is None or core.current_agenda.get_type() not in ['impromptu-motion',
+                                                                                         'proposal-discussion']:
+                    return
+
+                core.current_agenda.set_without_objection()
+                core.add_timetag(data_type)
+
+            elif data_type == "next-agenda":
+                is_end = core.next_agenda()
+                if is_end:
+                    return
+
+                boardcast_data = {
+                    "action": "notify",
+                    "data": {
+                        "type": "next-agenda"
+                    }
+                }
+
+                core.send_boardcast(ujson.dumps(boardcast_data),
+                                    ClientType.MEMBER | ClientType.SECRETARIAT | ClientType.PPT)
+
+            elif data_type == "reorder-agenda":
+                core.agenda_reorder(data['orders'])
+
+                boardcast_data = {
+                    "action": "update",
+                    "data": {
+                        "type": "agenda-reorder"
+                    }
+                }
+                core.send_boardcast(ujson.dumps(boardcast_data), ClientType.PPT)
+
+            elif data_type == "interpellation-start":
+                if core.current_agenda is None or not core.current_agenda.get_type() == "interpellations":
+                    return
+
+                idx = int(data['idx'])
+                core.current_agenda.member_start_interpellation(idx)
+                boardcast_data = {
+                    "action": "notify",
+                    "data": {
+                        "type": "interpellation-start"
+                    }
+                }
+                core.send_boardcast(ujson.dumps(boardcast_data), ClientType.SECRETARIAT | ClientType.PPT)
+                core.add_timetag(data_type)
+
+            elif data_type == "interpellation-pause":
+                if core.current_agenda is None or not core.current_agenda.get_type() == "interpellations":
+                    return
+
+                idx = int(data['idx'])
+                core.current_agenda.member_pause_interpellation(idx)
+                boardcast_data = {
+                    "action": "notify",
+                    "data": {
+                        "type": "interpellation-pause"
+                    }
+                }
+                core.send_boardcast(ujson.dumps(boardcast_data), ClientType.SECRETARIAT | ClientType.PPT)
+                core.add_timetag(data_type)
+
+            elif data_type == "interpellation-keep":
+                if core.current_agenda is None or not core.current_agenda.get_type() == "interpellations":
+                    return
+
+                idx = int(data['idx'])
+                core.current_agenda.member_keep_interpellation(idx)
+                boardcast_data = {
+                    "action": "notify",
+                    "data": {
+                        "type": "interpellation-keep"
+                    }
+                }
+                core.send_boardcast(ujson.dumps(boardcast_data), ClientType.SECRETARIAT | ClientType.PPT)
+                core.add_timetag(data_type)
+
+            elif data_type == "interpellation-stop":
+                if core.current_agenda is None or not core.current_agenda.get_type() == "interpellations":
+                    return
+
+                idx = int(data['idx'])
+                core.current_agenda.member_end_interpellation(idx)
+                boardcast_data = {
+                    "action": "notify",
+                    "data": {
+                        "type": "interpellation-stop"
+                    }
+                }
+                core.send_boardcast(ujson.dumps(boardcast_data), ClientType.SECRETARIAT | ClientType.PPT)
+                core.add_timetag(data_type)
+
+            elif data_type == "interpellation-start-submit":
+                core.interpellation.open_register()
+
+                boardcast_data = {
+                    "action": "notify",
+                    "data": {
+                        "type": "interpellation-start-submit"
+                    }
+                }
+                core.send_boardcast(ujson.dumps(boardcast_data), ClientType.MEMBER)
+
+            elif data_type == "interpellation-close-submit":
+                core.interpellation.close_register()
+
+                boardcast_data = {
+                    "action": "notify",
+                    "data": {
+                        "type": "interpellation-close-submit"
+                    }
+                }
+                core.send_boardcast(ujson.dumps(boardcast_data), ClientType.MEMBER)
+
+            elif data_type == "impromptu-start-submit":
+                core.impromptu.start_impromptu()
+
+                boardcast_data = {
+                    "action": "notify",
+                    "data": {
+                        "type": "impromptu-start-submit"
+                    }
+                }
+                core.send_boardcast(ujson.dumps(boardcast_data), ClientType.MEMBER)
+
+            elif data_type == "impromptu-close-submit":
+                core.impromptu.close_impromptu()
+
+                boardcast_data = {
+                    "action": "notify",
+                    "data": {
+                        "type": "impromptu-close-submit"
+                    }
+                }
+                core.send_boardcast(ujson.dumps(boardcast_data), ClientType.MEMBER)
+
+        elif action == "query":
+            data_type = data['type']
+            if data_type == "interpellations":
+                l = []
+                for member_id, interpellation in core.interpellation.get_interpellations().items():
+                    m = []
+                    for official_id in interpellation['officials']:
+                        m.append({
+                            "name": core.participated_members[official_id]['name'],
+                            "official_name": core.participated_members[official_id]['official_name']
+                        })
+
+                    l.append({
+                        "officials": m,
+                        "status": interpellation['status'],
+                        "member_name": core.participated_members[member_id]['name']
+                    })
+
+                await self.write_message(ujson.dumps({
+                    "action": "update",
+                    "data": {
+                        "type": "update-interpellation",
+                        "list": l,
+                    }
+                }))
+
+            elif data_type == "pre-impromptu":
+                await self.write_message(ujson.dumps({
+                    "action": "update",
+                    "data": {
+                        "type": "new-impromptu-motion",
+                        "list": [{"count": i['count'], "bill_name": i['bill_name'],
+                                  "name": core.participated_members[i['member_id']]['name']} for i in
+                                 core.impromptu.get_pre_impromptus()],
+                    }
+                }))
+
+            elif data_type == "impromptu":
+                l = []
+                for i in core.impromptu.get_impromptus():
+                    l.append({
+                        "name": i['bill_name'],
+                        "id": i['temp_id'],
+                    })
+
+                await self.write_message(ujson.dumps({
+                    "action": "update",
+                    "data": {
+                        "type": "impromptu",
+                        "list": l
+                    }
+                }))
+
+            elif data_type == "get-timer-info":
+                if core.current_agenda is None or core.current_agenda.get_type() not in ['impromptu-motion',
+                                                                                         'proposal-discussion',
+                                                                                         'interpellations']:
+                    return
+                boardcast_data = {"action": "update", 'data': core.current_agenda.get_timer_info()}
+                boardcast_data['data']['type'] = 'timer-info'
+                await self.write_message(ujson.dumps(boardcast_data))
+
+            elif data_type == "get-vote-result":
+                q_type = data['q_type']
+                bill_id = int(data['bill_id'])
+                boardcast_data = {
+                    "action": "update",
+                    "data": {
+                        "type": "vote-result"
+                    }
+                }
+
+                if q_type == "impromptu":
+                    impromptus = core.impromptu.get_impromptus()
+                    # TODO: 理論上temp_id會是嚴格遞增，所以可以二分temp_id，至少這樣最多要O(logn)而不是O(n)就可以找到了
+                    for impromptu in impromptus:
+                        if impromptu['temp_id'] == bill_id:
+                            boardcast_data['data']['result'] = impromptu['result']
+                            break
+
+                elif q_type == "proposal":
+                    if (bill := core.proposal.bills_map.get(bill_id)) is not None:
+                        boardcast_data['data']['result'] = bill.bill.get_vote_result()
+                else:
+                    pass
+
+                await self.write_message(ujson.dumps(boardcast_data))
+
+            elif data_type == "current-agenda":
+                boardcast_data = {
+                    "action": "update",
+                    "data": {
+                    }
+                }
+                if core.current_agenda is not None:
+                    boardcast_data['data'] = core.current_agenda.get_agenda_4_frontend()
+                    boardcast_data['data']['index'] = core.agenda_index
+                    boardcast_data['data']['type'] = "current-agenda"
+                    boardcast_data['data']['agenda'] = core.current_agenda.get_type()
+
+                await self.write_message(ujson.dumps(boardcast_data))
 
     async def on_message(self, message):
-        print(message)
-        receive = json.loads(message)
+        receive = ujson.loads(message)
         data = receive['data']
-        await self.action_handle(receive['action'], data)
+        if receive['action'] == "connection":
+            # 這他喵到底什麼東西
+            sitting_id = int(data['sitting_id'])
+            if (core := SittingCoreManageService.inst.get_sittingcore(int(sitting_id))) == NotExistError:
+                self.close(reason="啊哈哈，您參加的會議不存在喔～")
+                return
+
+            if (member := core.participated_members.get(int(data['member_id']))) is None:
+                self.close(reason="啊哈哈，您的id不存在喔～")
+                return
+
+            if member['group'] < int(MemberGroup.SECRETARIAT):
+                self.close(reason="啊哈哈，您沒有權限喔～")
+                return
+
+            core.register_callback_func(self.write_message, id(self), ClientType.SECRETARIAT)
+            self.sitting_id = sitting_id
+
+        else:
+            if self.sitting_id is None:
+                self.close(reason="啊哈哈，你沒有拿到session_id喔～")
+                return
+
+            await self.action_handle(receive['action'], data)
 
     def check_origin(self, origin: str) -> bool:
         parsed_origin = urlparse(origin)
-        # print(parsed_origin.netloc.endswith(":3227"))
         return True
 
     def on_close(self) -> None:
-        SittingCoreService.inst.unregister_callback_func(id(self), ClientType.SECRETARIAT)
+        if self.sitting_id is None:
+            return
+
+        core = SittingCoreManageService.inst.get_sittingcore(self.sitting_id)
+        core.unregister_callback_func(id(self), ClientType.SECRETARIAT)

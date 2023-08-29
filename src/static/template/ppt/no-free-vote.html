@@ -1,0 +1,158 @@
+<script>
+    function init() {
+        $(".main-navbar").remove();
+
+        const emitter = mitt();
+        let ws_link = "";
+        let sitting_id = "{{sitting_id}}";
+        if (location.protocol !== "https:") {
+            ws_link = `ws://${location.hostname}:3227/pps/be/sitting/pptws/{{sitting_id}}`;
+        } else {
+            ws_link = `wss://${location.hostname}/oj/be/sitting/pptws/{{sitting_id}}`;
+        }
+        var ws = new WebSocket(ws_link);
+
+        ws.onopen = (event) => {
+            ws.send(
+                JSON.stringify({
+                    action: "connection",
+                    data: {
+                        member_id: route.member_id,
+                        sitting_id: sitting_id,
+                    },
+                })
+            );
+            
+                send_data(ws, "query", {type: "no-free-vote-info"})
+
+            send_data(ws, "query", {type: "current-agenda"});
+        };
+
+        ws.onmessage = (event) => {
+            console.log("onmessage: ", event.data);
+            let data = JSON.parse(event.data);
+
+            emitter.emit("ws", data);
+        };
+
+        voteVue(ws, emitter);
+    }
+
+    function send_data(ws, action, data) {
+        ws.send(JSON.stringify({
+            action: action,
+            data: data
+        }));
+    }
+
+    function voteVue(ws, emitter) {
+        const { createApp } = Vue;
+        createApp({
+            data() {
+                return {
+                    bill_name: "",
+                    duration: 0,
+                    options: [],
+                }
+            },
+            computed: {
+                duration_format() {
+                    let sec = this.duration % 60;
+                    if (sec == 0) {
+                        sec = "00";
+                    } else if (sec < 10) {
+                        sec = `0${sec}`;
+                    }
+
+                    let minute = parseInt(this.duration / 60);
+                    return `${minute}:${sec}`;
+                },
+            },
+            methods: {
+                ws_handle(data) {
+                    let type = data['data']['type'];
+                    if (data['action'] == "notify") {
+                        if (type == 'next-agenda') {
+                            send_data(ws, "query", {
+                                type: "current-agenda"
+                            });
+                        } else if (type == 'vote-start') {
+                            send_data(ws, "query", {
+                                type: "no-free-vote-info"
+                            });
+                        } else if (type == 'vote-end') {
+                            clearInterval(this.timerID);
+                            this.duration = 0;
+                        }
+                    } else if (data['action'] == "update") {
+                        if (type == "no-free-vote-info") {
+                            this.options = data['data']['list'];
+                            this.bill_name = data['data']['bill_name'];
+                            if (data['data']['is_start'] && !data['data']['is_end']) {
+                                this.duration = data['data']['timer_info']['duration'] - 
+                                    data['data']['timer_info']['current_times'];
+
+                                this.timerID = setInterval(this.timer.bind(this), 1000);
+                            }
+                        } else if (type == "update-vote-count") {
+                            data['data']['counts'].forEach((count, idx, _) => {
+                                this.options[idx].count = count;
+                            });
+                        } else if (data['data']['vote_info'] == undefined || data['data']['vote_info']['is_start'] == false) {
+                            location.href = "/pps/sitting/ppt/{{sitting_id}}/"; 
+                        }
+                    }
+                },
+                timer() {
+                    if (this.duration == 0) {
+                        return;
+                    }
+                    this.duration--;
+                },
+            },
+
+            mounted() {
+                emitter.on("ws", this.ws_handle);
+            },
+
+            delimiters: ["{", "}"],
+        }).mount("#vote");
+    }
+</script>
+
+<style>
+    body {
+        background-color: black;
+        color: white; /* font color */
+    }
+
+    div#title {
+        font-size: 4.5vh;
+    }
+
+    div.text {
+        font-size: 4vh;
+    }
+</style>
+
+<div id="vote">
+    <div class="row justify-content-center p-5">
+        <div class="col-7 text">{ bill_name }</div>
+        <div class="col-2 text">表決型態：不記名</div>
+        <div class="col-3 text-center text">倒數計時：{ duration_format }</div>
+    </div>
+    <div class="row justify-content-center" style="margin-top: 18%;">
+        <table class="table table-borderless text-center" style="font-size: 4.5vh; color: white;">
+            <thead>
+                <tr>
+                    <th v-for="option in options">{ option.option }</th>
+                </tr>
+            </thead> 
+            <tbody>
+                <tr>
+                    <td class="p-5" v-for="option in options">{ option.count }</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>

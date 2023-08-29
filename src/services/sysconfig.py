@@ -5,7 +5,7 @@
 from sqlalchemy import select, insert, update
 
 from models.models import db, SystemConfig, Member, MemberGroup
-from util.error import WrongParamError, Success
+from utils.error import WrongParamError, Success
 
 
 class SysConfigService(object):

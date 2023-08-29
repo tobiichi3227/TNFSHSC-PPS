@@ -9,9 +9,9 @@ import tornado
 from sqlalchemy import select, func
 from sqlalchemy.orm import joinedload
 
-from models.models import Sessions, Log
-from util.error import Success
-from ..base import RequestHandler, reqenv
+from models.models import Sessions, Log, MemberGroup
+from utils.error import Success, WrongParamError
+from ..base import RequestHandler, reqenv, require_permission
 
 
 class LogManageHandler(RequestHandler):
@@ -21,6 +21,7 @@ class LogManageHandler(RequestHandler):
         super().__init__(*args, **kwargs)
 
     @reqenv
+    @require_permission([MemberGroup.SECRETARIAT, MemberGroup.ROOT])
     async def get(self):
         try:
             offset = int(self.get_argument('offset'))
@@ -31,11 +32,16 @@ class LogManageHandler(RequestHandler):
             limit = int(self.get_argument('limit'))
         except tornado.web.HTTPError or ValueError:
             limit = 25
+
+        if limit <= 0 or offset < 0:
+            await self.error(WrongParamError)
+
         _, logs = await self.list_log(offset, limit)
         _, logcnt = await self.get_logcnt()
         await self.render('manage/manage-log.html', logs=logs, offset=offset, limit=limit, logcnt=logcnt)
 
     @reqenv
+    @require_permission([MemberGroup.SECRETARIAT, MemberGroup.ROOT], use_error_code=True)
     async def post(self):
         pass
 
@@ -44,9 +50,9 @@ class LogManageHandler(RequestHandler):
             joinedload(Log.member, innerjoin=True))
 
         if operator_id is not None:
-            stmt.where(Log.operator_id == operator_id)
+            stmt = stmt.where(Log.operator_id == operator_id)
         if operate_type is not None:
-            stmt.where(Log.operate_type == operate_type)
+            stmt = stmt.where(Log.operate_type == operate_type)
 
         async with Sessions() as session:
             stmt.where()

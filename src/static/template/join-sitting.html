@@ -10,7 +10,7 @@
                 (res) => {
                     let msg = '';
                     if (res[0] != "E") {
-                        route.session_id = res;
+                        route.set_session_id(res);
                         route.go("/pps/sitting/{{sitting_id}}/");
                     } else {
                         if (res == "Eacces") {

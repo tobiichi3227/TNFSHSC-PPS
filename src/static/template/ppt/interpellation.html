@@ -1,0 +1,175 @@
+<script>
+    function init() {
+        $(".main-navbar").remove();
+
+        const emitter = mitt();
+        let ws_link = "";
+        let sitting_id = "{{sitting_id}}";
+        if (location.protocol !== "https:") {
+            ws_link = `ws://${location.hostname}:3227/pps/be/sitting/pptws/{{sitting_id}}`;
+        } else {
+            ws_link = `wss://${location.hostname}/oj/be/sitting/pptws/{{sitting_id}}`;
+        }
+        var ws = new WebSocket(ws_link);
+
+        ws.onopen = (event) => {
+            ws.send(
+                JSON.stringify({
+                    action: "connection",
+                    data: {
+                        member_id: route.member_id,
+                        sitting_id: sitting_id,
+                    },
+                })
+            );
+
+            send_data(ws, "query", {type: "interpellation-timer-info"});
+
+            send_data(ws, "query", {type: "current-agenda"});
+        };
+
+        ws.onmessage = (event) => {
+            console.log("onmessage: ", event.data);
+            let data = JSON.parse(event.data);
+
+            emitter.emit("ws", data);
+        };
+
+        interpellationVue(ws, emitter);
+    }
+
+    function send_data(ws, action, data) {
+        ws.send(JSON.stringify({
+            action: action,
+            data: data
+        }));
+    }
+
+    function interpellationVue(ws, emitter) {
+        const { createApp } = Vue;
+        createApp({
+            data() {
+                return {
+                    current_name: "",
+                    pendings: [],
+                    duration: 480,
+                }
+            },
+            computed: {
+                duration_format() {
+                    let sec = this.duration % 60;
+                    if (sec == 0) {
+                        sec = "00";
+                    } else if (sec < 10) {
+                        sec = `0${sec}`;
+                    }
+
+                    let minute = parseInt(this.duration / 60);
+                    return `${minute}:${sec}`;
+                },
+            },
+            methods: {
+                ws_handle(data) {
+                    if (data['action'] == "notify" && data['data']['type'] == "next-agenda") {
+                        ws.send(
+                            JSON.stringify({
+                                action: "query",
+                                data: {
+                                    type: "current-agenda"
+                                }
+                            })
+                        );
+                    }
+                    let agenda_type = data['data']['type'];
+
+                    if (data['action'] == "notify") {
+                        if (agenda_type == "interpellation-start" || agenda_type == "interpellation-keep") {
+                            this.timerID = setInterval(this.timer.bind(this), 1000);
+                        } else if (agenda_type == "interpellation-pause") {
+                            clearInterval(this.timerID);
+                        } else if (agenda_type == "interpellation-stop") {
+                            clearInterval(this.timerID);
+                            this.duration = 0;
+                        }
+                    } else if (data['action'] == "update") {
+                        this.agenda = data['data']['text'];
+                        if (agenda_type != "interpellations") {
+                            route.go("/pps/sitting/ppt/{{sitting_id}}/");
+                        } else {
+                            this.current_name = data['data']['current_name'];
+                            this.pendings = data['data']['pendings'];
+                            let current_status = data['data']['current_status'];
+                            if (current_status == undefined || current_status == 0) {
+                                this.duration = 480;
+                            } else if (current_status == 1) {
+                                this.duration -= data['data']['timer_info']['current_times'];
+                                this.timerID = setInterval(this.timer.bind(this), 1000);
+                            } else if (current_status == 2) {
+                                this.duration -= data['data']['timer_info']['current_times'];
+                            } else {
+                                this.duration = 0;
+                            }
+                        }
+                    }
+                },
+                timer() {
+                    if (this.duration == 0) {
+                        return;
+                    }
+                    this.duration--;
+                },
+            },
+
+            mounted() {
+                emitter.on("ws", this.ws_handle);
+            },
+
+            delimiters: ["{", "}"],
+        }).mount("#interpellation");
+    }
+</script>
+
+<style>
+    body {
+        background-color: black;
+        color: white; /* font color */
+    }
+
+    div#title {
+        font-size: 4.5vh;
+    }
+
+    div.text {
+        font-size: 4vh;
+    }
+</style>
+
+<div class="row justify-content-center" id="interpellation">
+    <div class="col-8 text-center my-3" id="title">
+        臺南一中學生議會第{{appointed_dates}}屆第{{sessions}}會期第{{sittings}}次
+        {% if sitting_type == 0 %}預備會議
+        {% elif sitting_type == 1 %}常會
+        {% elif sitting_type == 2 %}臨時會
+        {% elif sitting_type == 3 %}委員會
+        {% end %}
+    </div>
+
+    <div class="row justify-content-center my-5">
+        <div class="col-8 text-center text">
+            會務詢答
+        </div>
+        
+    </div>
+    <div class="row justify-content-center">
+        <div class="col-8 text-center text">
+            { current_name }議員質詢
+        </div>
+        <div class="col-8 text-center p-3 text" style="font-size: 6vh;">
+            { duration_format }
+        </div>
+    </div>
+
+    <div class="row justify-content-center" style="margin-top: 12%;">
+        <div class="col-3 text-center text" v-for="name in pendings">{ name }</div>
+    </div>
+</div>

@@ -1,0 +1,275 @@
+{% extends 'manage-nav-template.html' %} {% block head %}
+<div class="row mt-lg-2">
+    <script>
+        var cur_op_node = null;
+        var append_bills = new Map();
+        var remove_bills = [];
+        var j_bill_ui = $("#registerModal");
+        var bill_ui_modal = new bootstrap.Modal(document.getElementById("registerModal"));
+        var temp_id = 0;
+        function init() {
+            activeNav();
+
+            let form = $("#updateForm");
+
+            form.find("button.submit").on("click", (event) => {
+                let bill_name = form.find("#InputName").val();
+                let sitting_id = form.find("#InputSittingId").val();
+
+                $.post(
+                    "/pps/be/manage/bills",
+                    {
+                        reqtype: "update",
+                        bill_name: bill_name,
+                        sitting_id: sitting_id,
+                        root_id: -1,
+                        parent_id: -1,
+                    },
+                    (res) => {
+                        let print = form.find("#print");
+                        let wrapper = document.createElement("div");
+                        wrapper.innerHTML = `<div class="alert alert-success alert-dismissible" role="alert"> Submit success <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>`;
+                        print.append(wrapper);
+
+                        setTimeout(() => {
+                            form.find(".btn-secondary").click();
+                            print.html("");
+                        }, 1000);
+                    }
+                );
+            });
+
+            $("#save").on("click", function(event) {
+                let root_id = "{{ root_bill.bill.bill_id }}";
+                remove_bills.sort();
+                $.post(
+                    "/pps/be/manage/bills",
+                    {
+                        reqtype: "update_tree",
+                        root_id: root_id,
+                        sitting_id: {{ sitting_id }},
+                        appends: JSON.stringify(Object.fromEntries(append_bills)),
+                        removes: JSON.stringify(remove_bills),
+                    },
+                    (res) => {
+
+                    }
+                )
+            });
+
+            button_event();
+
+            j_bill_ui.find("button.submit").on("click", function (event) {
+                let name = j_bill_ui.find("#InputName").val();
+                if (name == undefined || name == "") {
+                    alert("名字不能為空");
+                    j_bill_ui.find("#InputName").val("");
+                    return;
+                }
+                
+                let par_depth = parseInt(cur_op_node.attr("depth"));
+                if (par_depth == 2) {
+                    alert("已經到樹底了");
+                    j_bill_ui.find("#InputName").val("");
+                    return;
+                }
+
+                cur_op_node.append(document.createElement("br"));
+                let span = document.createElement("span");
+                span.id = `t${temp_id}`;
+                span.setAttribute('depth', par_depth + 1);
+                span.style.paddingLeft = `${par_depth + 1}0%`;
+                span.innerHTML = `
+                ${name}
+                <button class="btn btn-primary px-sm-1 py-sm-0" id="t${temp_id}" type="1">
+                    新增
+                </button>
+                <button class="btn btn-primary px-sm-1 py-sm-0" id="t${temp_id}" type="2">
+                    刪除
+                </button>
+                <button class="btn btn-primary px-sm-1 py-sm-0" id="t${temp_id}" type="3">
+                    編輯
+                </button>
+                `;
+                cur_op_node.append(span);
+                button_event(); // TODO: 我累了，這裡可以直接在Button加上EventListener即可
+                
+                append_bills.set(`t${temp_id}`, {
+                    parent_id: cur_op_node.attr("id"),
+                    name: name,
+                });
+
+                j_bill_ui.find("#InputName").val("");
+                temp_id++;
+                bill_ui_modal.hide();
+            });
+        }
+
+        function button_event() {
+            $("#bill-tree").each(function(i, i_element) {
+                $(i_element).find("button").each(function(j, j_element) {
+                    let type = $(this).attr("type");
+                    if (type == "1") {
+                        $(this).on("click", function (event) {
+                            add_bill($(this));
+                        });
+                    } else if (type == "2") {
+                        $(this).on("click", function (event) {
+                            delete_bill($(this));
+                        });
+                    } else if (type == "3") {
+                        // $(this).on("click", function (event) {
+                        //     edit_bill($(this));
+                        // });
+                    }
+                });
+            });
+        }
+
+        function add_bill(node) {
+            cur_op_node = node.parent();
+            bill_ui_modal.show();
+        }
+
+        function delete_bill(node) {
+            console.log('func call');
+            node = node.parent();
+            if (node.attr("depth") == 2) {
+                // 樹根，單純刪點
+                if (node.attr("id").startsWith("t")) {
+                    append_bills.delete(node.attr("id"));
+                    node.prev("br").remove();
+                    node.remove();
+                } else {
+                    remove_bills.push(parseInt(node.attr("id")));
+                    node.prev().remove();
+                    node.remove();
+                }
+            } else {
+                if (node.attr("id").startsWith("t")) {
+                    // 表示子樹都樹虛節點
+                    node.find("span").each(function(i, i_element) {
+                        let j_i_element = $(i_element);
+                        append_bills.delete(j_i_element.attr("id"));
+                        j_i_element.prev().remove();
+                        j_i_element.remove();
+                    });
+
+                    append_bills.delete(node.attr("id"));
+                } else {
+                    node.find("span").each(function(i, i_element) {
+                        let j_i_element = $(i_element);
+                        if (j_i_element.attr("id").startsWith("t")) {
+                            // 虛節點
+                            append_bills.delete(j_i_element.attr("id"));
+                            j_i_element.prev().remove();
+                            j_i_element.remove();
+                        } else {
+                            // 實節點
+                            remove_bills.push(parseInt(j_i_element.attr("id")));
+                            j_i_element.prev().remove();
+                            j_i_element.remove();
+                        }
+                    });
+
+                    // 把自己加到刪除列表中
+                    remove_bills.push(parseInt(node.attr("id")));
+                }
+                // 刪除自己
+                node.prev().remove();
+                node.remove();
+            }
+        }
+
+        function edit_bill(node) {
+            // TODO: 我累了，暫時不想實現
+            cur_op_node = node.parent();
+            bill_ui_modal.show();
+        }
+    </script>
+    {% end %} {% block content %}
+
+    <div
+        aria-hidden="true"
+        aria-labelledby="exampleModalLabel"
+        class="modal fade"
+        id="registerModal"
+        tabindex="-1"
+    >
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="exampleModalLabel">新增議案</h5>
+                    <button
+                        aria-label="Close"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        type="button"
+                    ></button>
+                </div>
+                <div class="modal-body">
+                    <form id="registerForm">
+                        <label for="InputName" class="form-label"
+                            >議案名稱</label
+                        >
+                        <input
+                            type="text"
+                            id="InputName"
+                            class="form-control"
+                        />
+                        <div id="print"></div>
+                        <button
+                            type="button"
+                            class="btn btn-primary mt-lg-3 submit"
+                        >
+                            Submit
+                        </button>
+                        <button
+                            class="btn btn-secondary mt-lg-3"
+                            data-bs-dismiss="modal"
+                            type="button"
+                        >
+                            Close
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col mx-lg-3">
+        <form id="updateForm" class="mb-lg-3">
+            <label for="InputName" class="form-label"
+                >議案名稱</label
+            >
+            <input
+                type="text"
+                id="InputName"
+                class="form-control"
+                value="{{ root_bill.bill.name }}"
+            />
+            <label for="InputSittingId" class="form-label">會議ID</label>
+            <input type="number" id="InputSittingId" class="form-control" placeholder="可選" value="{{ sitting_id }}">
+            <div id="print"></div>
+            <button
+                type="button"
+                class="btn btn-primary mt-lg-3 submit"
+            >
+                Submit
+            </button>
+            <button
+                class="btn btn-secondary mt-lg-3"
+                data-bs-dismiss="modal"
+                type="button"
+            >
+                Close
+            </button>
+        </form>
+        <div id="bill-tree">
+            {{ bill_html }}
+        </div>
+
+        <button class="btn btn-primary" id="save">Save</button>
+    </div>
+</div>
+{% end %}

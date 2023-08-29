@@ -1,0 +1,180 @@
+<script>
+    function init() {
+        $(".main-navbar").remove();
+
+        const emitter = mitt();
+        let ws_link = "";
+        let sitting_id = "{{sitting_id}}";
+        if (location.protocol !== "https:") {
+            ws_link = `ws://${location.hostname}:3227/pps/be/sitting/pptws/{{sitting_id}}`;
+        } else {
+            ws_link = `wss://${location.hostname}/oj/be/sitting/pptws/{{sitting_id}}`;
+        }
+        var ws = new WebSocket(ws_link);
+
+        ws.onopen = (event) => {
+            ws.send(
+                JSON.stringify({
+                    action: "connection",
+                    data: {
+                        member_id: route.member_id,
+                        sitting_id: sitting_id,
+                    },
+                })
+            );
+            
+            send_data(ws, "query", {type: "free-vote-info"})
+
+            send_data(ws, "query", {type: "current-agenda"});
+        };
+
+        ws.onmessage = (event) => {
+            console.log("onmessage: ", event.data);
+            let data = JSON.parse(event.data);
+
+            emitter.emit("ws", data);
+        };
+
+        voteVue(ws, emitter);
+    }
+
+    function send_data(ws, action, data) {
+        ws.send(JSON.stringify({
+            action: action,
+            data: data
+        }));
+    }
+
+    function voteVue(ws, emitter) {
+        const { createApp } = Vue;
+        createApp({
+            data() {
+                return {
+                    bill_name: "",
+                    duration: 0,
+                    options: [],
+                    members: new Map(),
+                    colors: [
+                        {color: "#12D900", name: "綠色"},
+                        {color: "#FF4040", name: "紅色"},
+                        {color: "#FFE302", name: "黃色"},
+                        {color: "#FF9900", name: "橙色"},
+                        {color: "#23C1FF", name: "藍色"},
+                        {color: "#7B00FF", name: "靛色"},
+                        {color: "#DF00FF", name: "紫色"},
+                    ]
+                }
+            },
+            computed: {
+                duration_format() {
+                    let sec = this.duration % 60;
+                    if (sec == 0) {
+                        sec = "00";
+                    } else if (sec < 10) {
+                        sec = `0${sec}`;
+                    }
+
+                    let minute = parseInt(this.duration / 60);
+                    return `${minute}:${sec}`;
+                },
+            },
+            methods: {
+                ws_handle(data) {
+                    let type = data['data']['type'];
+                    if (data['action'] == "notify") {
+                        if (type == 'next-agenda') {
+                            send_data(ws, "query", {
+                                type: "current-agenda"
+                            });
+                        } else if (type == 'vote-start') {
+                            send_data(ws, "query", {
+                                type: "free-vote-info"
+                            });
+                        } else if (type == 'vote-end') {
+                            clearInterval(this.timerID);
+                            this.duration = 0;
+                        }
+                    } else if (data['action'] == "update") {
+                        if (type == "free-vote-info") {
+                            this.options = data['data']['list'];
+                            this.bill_name = data['data']['bill_name'];
+                            if (data['data']['is_start'] && !data['data']['is_end']) {
+                                this.duration = data['data']['timer_info']['duration'] - 
+                                    data['data']['timer_info']['current_times'];
+
+                                this.timerID = setInterval(this.timer.bind(this), 1000);
+                            }
+                            
+                            let m = new Map(Object.entries(data['data']['members']));
+                            console.log(m);
+                            for (let [member_id, member] of m) {
+                                member.option = 0;
+                                if (member.checkin_status != 1) 
+                                    member.color = "#939393";
+                                else
+                                    member.color = "white";
+
+                                this.members.set(parseInt(member_id), member);
+                            }
+                            // drop(m); delete m; del m;
+                        } else if (type == "update-vote-count") {
+                            let member_id = parseInt(data['data']['member_id']);
+                            let member = this.members.get(member_id);
+                            member.option = data['data']['index'];
+                            member.color = this.colors[data['data']['index']].color;
+                            this.members.set(member_id, member);
+                        } else if (data['data']['vote_info'] == undefined || data['data']['vote_info']['is_start'] == false) {
+                            location.href = "/pps/sitting/ppt/{{sitting_id}}/";
+                        }
+                    }
+                },
+                timer() {
+                    if (this.duration == 0) {
+                        return;
+                    }
+                    this.duration--;
+                },
+            },
+
+            mounted() {
+                emitter.on("ws", this.ws_handle);
+            },
+
+            delimiters: ["{", "}"],
+        }).mount("#vote");
+    }
+</script>
+
+<style>
+    body {
+        background-color: black;
+        color: white; /* font color */
+    }
+
+    div#title {
+        font-size: 4.5vh;
+    }
+
+    div.text {
+        font-size: 4vh;
+    }
+
+    div.small-text {
+        font-size: 3.5vh;
+    }
+</style>
+
+<div id="vote">
+    <div class="row justify-content-center p-2">
+        <div class="col-7 text">{ bill_name }</div>
+        <div class="col-2 text">表決型態：記名</div>
+        <div class="col-3 text-center text">倒數計時：{ duration_format }</div>
+    </div>
+    <div class="row">
+        <div class="col-2 text">出席：白色</div>
+        <div class="col-2 text" v-for="(option, idx) in options" :style="{color: colors[idx].color}">{option.option}：{colors[idx].name}</div>
+    </div>
+    <div class="row" style="margin-top: 3%;">
+        <div class="col-2 text-center small-text my-1 mx-auto" v-for="[member_id, member] in members.entries()" :key="member_id" :style="{color: member.color}">{member.name}</div>
+    </div>
+</div>

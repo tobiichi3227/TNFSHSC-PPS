@@ -4,7 +4,7 @@
         function init() {
             activeNav();
 
-            let member_id = "{{member_id}}";
+            let member_id = "{{changed_member_id}}";
             let origin_group = "{{member[3]}}";
 
             let form = $("#updateMemberForm");
@@ -91,12 +91,47 @@
                     }
                 );
             });
+
+            form.find("#InputPasswordReset").on("change", function (event) {
+                let is_reset = $(this).is(":checked");
+
+                $.post(
+                    "/pps/be/manage/member",
+                    {
+                        reqtype: "reset",
+                        member_id: member_id,
+                        reset: is_reset
+                    },
+                    (res) => {
+
+                    }
+                );
+            });
+
+            form.find("#InputLock").on("change", function (event) {
+                let is_lock = $(this).is(":checked");
+
+                $.post(
+                    "/pps/be/manage/member",
+                    {
+                        reqtype: "lock",
+                        member_id: member_id,
+                        lock: is_lock
+
+                    },
+                    (res) => {
+
+                    }
+                );
+            });
+
             form.find("button.go-back").on("click", function (event) {
                 location.href = route.prev_url;
             });
         }
     </script>
     {% end %} {% block content %}
+    {% from models.models import MemberLockReason %}
     <div class="col mx-lg-3">
         <form class="needs-validation" id="updateMemberForm">
             <div class="mb-3">
@@ -158,14 +193,39 @@
                 />
             </div>
             <div class="mb-3">
-                <label class="form-label" for="InputPassword"
-                    >密碼(謹慎操作)</label
-                >
+                <label class="form-label" for="InputPassword" style="color: red;">
+                    密碼(謹慎操作)
+                </label>
                 <input
                     class="form-control"
                     id="InputPassword"
                     required
                     type="password"
+                />
+                <div class="invalid-feedback">not null</div>
+            </div>
+            {% set lock = member[5] %}
+            <div class="mb-3">
+                <label class="form-label" for="InputPasswordReset" style="color: red;">
+                    允許重設密碼(謹慎操作)
+                </label>
+                <input
+                    class="form-check"
+                    id="InputPasswordReset"
+                    type="checkbox"
+                    {% if lock == int(MemberLockReason.LockByPasswordReset) %} checked {% end %}
+                />
+                <div class="invalid-feedback">not null</div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="InputPasswordReset" style="color: red;">
+                    鎖定帳號(謹慎操作)
+                </label>
+                <input
+                    class="form-check"
+                    id="InputLock"
+                    type="checkbox"
+                    {% if lock == int(MemberLockReason.LockByAdmin) %} checked {% end %}
                 />
                 <div class="invalid-feedback">not null</div>
             </div>

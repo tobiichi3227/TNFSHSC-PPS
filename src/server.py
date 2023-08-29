@@ -32,6 +32,7 @@ class Server:
         # db connect
         # models.models.connect_db(models.models.db)
         asyncio.get_event_loop().run_until_complete(models.models.connect_db(models.models.db))
+
         # services init
         asyncio.get_event_loop().run_until_complete(services.service.services_init(services.service.Service))
 
